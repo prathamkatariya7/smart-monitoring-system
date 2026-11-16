@@ -1,0 +1,38 @@
+# Reverse proxy (Part 9.2, 9.5). TLS certificate comes from the installation
+# CA generated at first-run, or a client-supplied certificate. For local dev
+# this serves plain HTTP on :80 so no certificate setup is required to get
+# started; switch to the HTTPS block for anything beyond a laptop/dev box.
+
+:80 {
+	encode gzip
+	reverse_proxy /api/* app:3000
+	reverse_proxy /health app:3000
+	# The NestJS gateway's `namespace: '/ws'` is a Socket.IO logical namespace,
+	# not an HTTP path -- the actual transport handshake (polling + upgrade)
+	# happens at Socket.IO's default `/socket.io/*` path, so that's what must
+	# be proxied (not `/ws*`, which the client never actually requests).
+	reverse_proxy /socket.io/* app:3000
+
+	@websockets {
+		header Connection *Upgrade*
+		header Upgrade websocket
+	}
+	reverse_proxy @websockets app:3000
+
+	# Catch-all: every other path (the SPA itself, and its static assets)
+	# goes to the frontend container. Must stay LAST -- Caddy matches
+	# directives in the order written, and this has no path matcher so it
+	# would otherwise swallow the more specific rules above it.
+	reverse_proxy frontend:80
+}
+
+# Production example (uncomment and point tls at the installation CA-issued
+# certificate / key, or omit the tls block to let Caddy use its own internal
+# CA which the client's IT then trusts on browsers per Part 9.5):
+#
+# rmp.client.local {
+# 	tls /data/certs/server.crt /data/certs/server.key
+# 	encode gzip
+# 	reverse_proxy /api/* app:3000
+# 	reverse_proxy /ws* app:3000
+# }

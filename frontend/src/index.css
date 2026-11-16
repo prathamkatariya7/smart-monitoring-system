@@ -1,0 +1,27 @@
+/* Global reset for a full-viewport Ant Design app. The previous content here
+   was Vite's default template CSS (fixed 1126px #root width, centered,
+   bordered, and a prefers-color-scheme:dark override that turned the page
+   background black) -- none of it was authored for this app and it caused
+   the layout to render in a centered column with dark gutters either side
+   instead of filling the browser window. */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+}
+
+body {
+  font-family: -apple-system, 'Segoe UI', system-ui, Roboto, sans-serif;
+  /* Force light scheme regardless of OS/browser dark-mode preference --
+     the app's Ant Design theme is light-only; letting the browser apply its
+     own dark-mode form/scrollbar colors on top looked broken. */
+  color-scheme: light;
+}

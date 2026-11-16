@@ -1,0 +1,34 @@
+CONFIG_IDF_TARGET="esp32p4"
+CONFIG_BOOTLOADER_LOG_LEVEL_WARN=y
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_SPEED_200M=y
+CONFIG_SPIRAM_XIP_FROM_PSRAM=y
+CONFIG_CACHE_L2_CACHE_256KB=y
+CONFIG_CACHE_L2_CACHE_LINE_128B=y
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=10240
+CONFIG_FREERTOS_HZ=1000
+# [CONFIRMED by owner 2026-11-10] Deliberately deviates from Waveshare's example
+# default (n) and from SPEC.md section 5.5's original "SoftAP is compiled out"
+# rule -- the owner wants a router-style Wi-Fi setup hotspot (rmp_net's captive
+# provisioning portal) for first-boot and reconnect-failure Wi-Fi configuration.
+CONFIG_ESP_WIFI_SOFTAP_SUPPORT=y
+
+# RMP additions (SPEC.md section 2) -- [VERIFY] each name still resolves
+# correctly in menuconfig for this exact ESP-IDF v5.5.6 + esp_hosted 1.4.x
+# + esp_wifi_remote 0.14.x combination; some of these Kconfig symbol names
+# can shift between component versions.
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_MQTT_PROTOCOL_5=y
+
+# Crash diagnostics & watchdog (found 2026-11-12 audit: ESP32 was freezing
+# without any core dump or WDT reboot because these were all defaulted to off).
+CONFIG_FREERTOS_CHECK_STACKOVERFLOW=y
+CONFIG_FREERTOS_CHECK_STACKOVERFLOW_CANARY=y
+CONFIG_ESP_TASK_WDT_EN=y
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=15
+CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y
+CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF=y

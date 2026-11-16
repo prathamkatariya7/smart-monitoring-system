@@ -1,0 +1,112 @@
+# Serial test frames - hex mode, 115200 8N1. Replace nothing; paste as-is into SSCOM/Realterm.
+# Text writes end with FF FF (enable "end marker 0xFFFF" on every Text Display).
+
+## Page 0 - Boot / POST  (firmware constant: doc page 0x0000)
+Go to page    : 5A A5 07 82 00 84 5A 01 00 00
+boot_progress     : 5A A5 05 82 13 06 00 41
+fw_version        : 5A A5 11 82 10 60 46 57 20 76 30 2E 31 2E 30 2D 70 34 FF FF
+
+## Page 1 - Idle Standby  (firmware constant: doc page 0x0001)
+Go to page    : 5A A5 07 82 00 84 5A 01 00 01
+reactor_title     : 5A A5 0F 82 20 00 52 65 61 63 74 6F 72 20 32 35 FF FF
+conn_pill         : 5A A5 05 82 20 18 00 00   (values 0 ONLINE,1 OFFLINE)
+lab_name          : 5A A5 0D 82 20 20 51 43 20 4C 61 62 20 31 FF FF
+clock             : 5A A5 0A 82 20 40 31 34 3A 33 32 FF FF
+temp_quality_dot  : 5A A5 05 82 13 00 00 00   (values 0 good,1 suspect,2 bad,3 off)
+temp_value        : 5A A5 09 82 11 00 32 34 2E 38 FF FF
+temp_raw          : 5A A5 0F 82 11 10 52 61 77 20 32 34 2E 39 20 43 FF FF
+cal_tag           : 5A A5 0B 82 11 20 43 61 6C 20 76 31 FF FF
+rpm_value         : 5A A5 06 82 11 30 30 FF FF
+torque_value      : 5A A5 08 82 11 40 30 2E 30 FF FF
+
+## Page 2 - SoftAP Wi-Fi Provisioning  (firmware constant: doc page 0x0002)
+Go to page    : 5A A5 07 82 00 84 5A 01 00 02
+
+## Page 3 - Unclaimed / Unbound Device  (firmware constant: doc page 0x0003)
+Go to page    : 5A A5 07 82 00 84 5A 01 00 03
+device_uuid       : 5A A5 14 82 20 50 30 31 61 31 61 66 32 64 2E 2E 2E 36 62 63 37 FF FF
+mac_address       : 5A A5 16 82 32 80 45 38 3A 46 36 3A 30 41 3A 45 33 3A 39 30 3A 46 42 FF FF
+ip_address        : 5A A5 12 82 32 10 31 37 32 2E 31 36 2E 35 30 2E 31 36 32 FF FF
+mqtt_broker       : 5A A5 18 82 32 20 31 37 32 2E 31 36 2E 35 30 2E 31 33 38 3A 31 38 38 38 33 FF FF
+
+## Page 4 - Analyst Process Assignment  (firmware constant: doc page 0x0010)
+Go to page    : 5A A5 07 82 00 84 5A 01 00 04
+analyst_name      : 5A A5 0F 82 30 00 44 65 65 70 61 20 4E 61 69 72 FF FF
+scope_tag         : 5A A5 1A 82 30 70 51 43 20 4C 61 62 20 31 20 7C 20 52 65 61 63 74 6F 72 20 32 35 FF FF
+process_name      : 5A A5 19 82 30 20 53 79 6E 74 68 65 73 69 73 20 42 61 74 63 68 20 42 2D 34 32 FF FF
+
+## Page 5 - Pre-Start Checklist & Limits  (firmware constant: doc page 0x0011)
+Go to page    : 5A A5 07 82 00 84 5A 01 00 05
+process_name      : 5A A5 19 82 30 20 53 79 6E 74 68 65 73 69 73 20 42 61 74 63 68 20 42 2D 34 32 FF FF
+max_temp          : 5A A5 09 82 30 80 38 35 2E 30 FF FF
+max_speed         : 5A A5 08 82 30 90 36 30 30 FF FF
+max_roc           : 5A A5 09 82 30 A0 2B 35 2E 30 FF FF
+
+## Page 6 - Live Running Dashboard  (firmware constant: doc page 0x0012)
+Go to page    : 5A A5 07 82 00 84 5A 01 00 06
+reactor_title     : 5A A5 12 82 20 00 44 65 65 70 61 20 4E 2E 20 52 2D 32 35 FF FF
+conn_pill         : 5A A5 05 82 20 18 00 00   (values 0 ONLINE,1 OFFLINE)
+clock             : 5A A5 0A 82 20 40 31 34 3A 33 32 FF FF
+temp_quality_pill : 5A A5 05 82 13 01 00 00   (values 0 GOOD,1 SUSPECT,2 BAD)
+temp_value        : 5A A5 09 82 11 00 33 35 2E 32 FF FF
+trend_rate        : 5A A5 09 82 11 B0 2B 30 2E 34 FF FF
+temp_raw          : 5A A5 0F 82 11 10 52 61 77 20 33 35 2E 36 20 43 FF FF
+cal_tag           : 5A A5 0D 82 11 20 43 61 6C 20 76 31 2E 30 FF FF
+rpm_value         : 5A A5 08 82 11 30 33 35 30 FF FF
+rpm_set           : 5A A5 0D 82 11 50 53 65 74 3A 20 33 35 30 FF FF
+torque_value      : 5A A5 09 82 11 40 31 32 2E 34 FF FF
+torque_load_bar   : 5A A5 05 82 13 05 00 3C
+batch_tag         : 5A A5 0F 82 11 D0 42 41 54 43 48 20 42 2D 34 32 FF FF
+duration          : 5A A5 0D 82 11 C0 30 31 3A 32 34 3A 31 30 FF FF
+fault_code        : 5A A5 06 82 11 60 30 FF FF
+run_footer        : 5A A5 05 82 13 07 00 00   (values 0 hint,1 silenced)
+
+## Page 7 - Critical Safety Alarm  (firmware constant: doc page 0x0013)
+Go to page    : 5A A5 07 82 00 84 5A 01 00 07
+alarm_header_flash: 5A A5 05 82 13 08 00 00   (values 0 bright,1 dim)
+alarm_param       : 5A A5 1F 82 11 80 50 41 52 41 4D 45 54 45 52 3A 20 54 48 45 52 4D 41 4C 20 52 55 4E 41 57 41 59 FF FF
+alarm_rate        : 5A A5 0A 82 11 70 2B 31 35 2E 32 FF FF
+alarm_limit       : 5A A5 09 82 11 A0 2B 35 2E 30 FF FF
+alarm_temp        : 5A A5 09 82 11 90 38 36 2E 32 FF FF
+mute_button       : 5A A5 05 82 13 09 00 00   (values 0 SILENCE,1 SILENCED)
+
+## Page 8 - Process Completion & Handover  (firmware constant: doc page 0x0014)
+Go to page    : 5A A5 07 82 00 84 5A 01 00 08
+process_name      : 5A A5 19 82 30 20 53 79 6E 74 68 65 73 69 73 20 42 61 74 63 68 20 42 2D 34 32 FF FF
+total_duration    : 5A A5 0D 82 31 00 30 32 3A 34 35 3A 31 38 FF FF
+final_temp        : 5A A5 09 82 31 10 32 34 2E 32 FF FF
+samples_logged    : 5A A5 0A 82 31 20 39 2C 39 31 38 FF FF
+audit_state       : 5A A5 05 82 13 0A 00 01   (values 0 saving,1 stored)
+
+## Page 9 - Hardware & Network Diagnostics  (firmware constant: doc page 0x0020)
+Go to page    : 5A A5 07 82 00 84 5A 01 00 09
+dot_ssid          : 5A A5 05 82 13 10 00 00   (values 0 good,1 suspect,2 bad,3 off)
+ssid              : 5A A5 0D 82 32 00 42 53 4C 5F 50 55 4E 45 FF FF
+dot_ip_address    : 5A A5 05 82 13 11 00 00   (values 0 good,1 suspect,2 bad,3 off)
+ip_address        : 5A A5 12 82 32 10 31 37 32 2E 31 36 2E 35 30 2E 31 36 32 FF FF
+dot_mqtt_broker   : 5A A5 05 82 13 12 00 00   (values 0 good,1 suspect,2 bad,3 off)
+mqtt_broker       : 5A A5 18 82 32 20 31 37 32 2E 31 36 2E 35 30 2E 31 33 38 3A 31 38 38 38 33 FF FF
+dot_mtls_status   : 5A A5 05 82 13 13 00 00   (values 0 good,1 suspect,2 bad,3 off)
+mtls_status       : 5A A5 18 82 32 30 43 4F 4E 4E 45 43 54 45 44 20 28 54 4C 53 76 31 2E 32 29 FF FF
+dot_ntp_status    : 5A A5 05 82 13 14 00 00   (values 0 good,1 suspect,2 bad,3 off)
+ntp_status        : 5A A5 15 82 32 40 4C 4F 43 4B 45 44 20 28 2B 2F 2D 32 20 6D 73 29 FF FF
+dot_rtd_status    : 5A A5 05 82 13 15 00 00   (values 0 good,1 suspect,2 bad,3 off)
+rtd_status        : 5A A5 18 82 32 50 41 43 54 49 56 45 20 28 34 33 30 2E 30 20 52 72 65 66 29 FF FF
+dot_rs232_status  : 5A A5 05 82 13 16 00 00   (values 0 good,1 suspect,2 bad,3 off)
+rs232_status      : 5A A5 18 82 32 60 48 45 49 44 4F 4C 50 48 20 28 39 36 30 30 20 38 4E 31 29 FF FF
+dot_flash_status  : 5A A5 05 82 13 17 00 00   (values 0 good,1 suspect,2 bad,3 off)
+flash_status      : 5A A5 18 82 32 70 52 69 6E 67 20 31 36 4D 42 20 28 33 25 20 75 73 65 64 29 FF FF
+dot_mac_address   : 5A A5 05 82 13 18 00 00   (values 0 good,1 suspect,2 bad,3 off)
+mac_address       : 5A A5 16 82 32 80 45 38 3A 46 36 3A 30 41 3A 45 33 3A 39 30 3A 46 42 FF FF
+
+## Read current page : 5A A5 04 83 00 14 01   -> reply 5A A5 06 83 00 14 01 <page_hi> <page_lo>
+## Touch/return-key frames the ESP32 must parse (DWIN -> ESP32):
+accept   : 5A A5 06 83 30 10 01 00 00
+reject   : 5A A5 06 83 30 10 01 00 01
+start    : 5A A5 06 83 30 30 01 00 00
+cancel   : 5A A5 06 83 30 30 01 00 01
+silence  : 5A A5 06 83 30 40 01 00 01
+release  : 5A A5 06 83 30 50 01 00 01
+return   : 5A A5 06 83 30 60 01 00 01
+
+## Write ACK from display (if enabled): 5A A5 03 82 4F 4B

@@ -1,0 +1,152 @@
+# Local, single-node deployment (Part 9.3). No cloud services, no paid
+# third-party dependencies -- everything here is free/open-source and runs
+# entirely on the client's own machine via Docker.
+
+name: smartmonitoringsystem
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_SUPERUSER_PASSWORD:-change_me_dev_superuser_password}
+      POSTGRES_DB: rmp
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d rmp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    logging: *default-logging
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - ./infra/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./infra/mosquitto/certs:/mosquitto/certs:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+    ports:
+      # Host-side 18883 avoids Windows' Hyper-V dynamic port exclusion range,
+      # which can silently claim 8883 on some machines. Container-internal
+      # port stays 8883 (Part 8.2 default); only the host mapping differs.
+      - "18883:8883"
+
+  # One-shot migration runner: executes TypeORM migrations as the Postgres
+  # superuser so that CREATE EXTENSION / GRANT / DDL all succeed, then exits.
+  # The app service depends on this, so it won't start until migrations pass.
+  migration:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    env_file:
+      - ./backend/.env
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USERNAME: ${MIGRATION_DB_USERNAME:-postgres}
+      DB_PASSWORD: ${MIGRATION_DB_PASSWORD:-change_me_dev_superuser_password}
+      DB_DATABASE: rmp
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["npx", "typeorm-ts-node-commonjs", "migration:run", "-d", "src/database/data-source.ts"]
+    restart: "no"
+
+  app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    restart: unless-stopped
+    logging: *default-logging
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    env_file:
+      - ./backend/.env
+    environment:
+      DB_HOST: postgres
+      MQTT_URL: mqtts://mosquitto:8883
+    volumes:
+      - ./backend/src:/app/src
+      - ./infra/mosquitto/certs:/certs:ro
+      - exports_data:/app/exports
+      - ./backend/licence:/licence
+      - backups_data:/app/backups
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+      migration:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+    # No host port mapping -- only reachable from Caddy on the internal
+    # Docker network, which is the single entry point (see the `caddy`
+    # service below and infra/caddy/Caddyfile's catch-all route to this).
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:80/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    ports:
+      - "443:443"
+      - "80:80"
+    depends_on:
+      app:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  mosquitto_data:
+  mosquitto_log:
+  caddy_data:
+  caddy_config:
+  exports_data:
+  backups_data:
