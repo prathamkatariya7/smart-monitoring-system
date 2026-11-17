@@ -43,7 +43,9 @@ export class ExportsReports1730000000009 implements MigrationInterface {
         created_at   timestamptz NOT NULL DEFAULT now()
       );
     `);
-    await queryRunner.query(`CREATE INDEX equipment_status_interval_eq_idx ON equipment_status_interval (equipment_id, from_ts);`);
+    await queryRunner.query(
+      `CREATE INDEX equipment_status_interval_eq_idx ON equipment_status_interval (equipment_id, from_ts);`,
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

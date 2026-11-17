@@ -35,12 +35,16 @@ export class CfgDesiredService {
     const device = await manager.findOne(Device, { where: { id: deviceId } });
     if (!device) throw new NotFoundException('Device not found');
 
-    const binding = await manager.findOne(DeviceBinding, { where: { deviceId, boundTo: IsNull() } });
+    const binding = await manager.findOne(DeviceBinding, {
+      where: { deviceId, boundTo: IsNull() },
+    });
     const equipment = binding
       ? await manager.findOne(Equipment, { where: { id: binding.equipmentId } })
       : null;
     const laboratory = equipment
-      ? await manager.findOne(Laboratory, { where: { id: equipment.laboratoryId } })
+      ? await manager.findOne(Laboratory, {
+          where: { id: equipment.laboratoryId },
+        })
       : null;
     const [client] = await manager.find(Client, { take: 1 });
     const featureSwitches = await manager.find(FeatureSwitch);
@@ -52,7 +56,9 @@ export class CfgDesiredService {
       const activeProcess = await manager
         .getRepository(Process)
         .createQueryBuilder('p')
-        .where('p.equipment_id = :equipmentId', { equipmentId: binding.equipmentId })
+        .where('p.equipment_id = :equipmentId', {
+          equipmentId: binding.equipmentId,
+        })
         .andWhere("p.status IN ('SCHEDULED', 'ACCEPTED', 'RUNNING', 'PAUSED')")
         .orderBy('p.planned_start_utc', 'ASC')
         .getOne();
@@ -63,7 +69,9 @@ export class CfgDesiredService {
         });
         let ownerName = '';
         if (ownerAssign) {
-          const user = await manager.findOne(AppUser, { where: { id: ownerAssign.userId } });
+          const user = await manager.findOne(AppUser, {
+            where: { id: ownerAssign.userId },
+          });
           ownerName = user?.name ?? '';
         }
         const thr = await manager.findOne(ThresholdVersion, {
@@ -119,11 +127,17 @@ export class CfgDesiredService {
       status: device.status,
       decommissioned: isDecommissioned,
       policyPack: client?.policyPack ?? 'flexible',
-      featureSwitches: Object.fromEntries(featureSwitches.map((f) => [f.key, f.value])),
+      featureSwitches: Object.fromEntries(
+        featureSwitches.map((f) => [f.key, f.value]),
+      ),
       binding: isDecommissioned
         ? null
         : binding
-          ? { equipmentId: binding.equipmentId, laboratoryId: binding.laboratoryId, reactorNumber: equipment?.reactorNumber }
+          ? {
+              equipmentId: binding.equipmentId,
+              laboratoryId: binding.laboratoryId,
+              reactorNumber: equipment?.reactorNumber,
+            }
           : null,
       laboratoryName: isDecommissioned ? null : (laboratory?.name ?? null),
       assignment: isDecommissioned ? null : assignmentData,
@@ -141,10 +155,14 @@ export class CfgDesiredService {
     });
     await manager.save(row);
 
-    this.mqtt.publish(`rmp/v1/${deviceId}/cfg/desired`, JSON.stringify(bundle), {
-      qos: 1,
-      retain: true,
-    });
+    this.mqtt.publish(
+      `rmp/v1/${deviceId}/cfg/desired`,
+      JSON.stringify(bundle),
+      {
+        qos: 1,
+        retain: true,
+      },
+    );
     this.logger.log(`Pushed cfg/desired v${version} to device ${deviceId}`);
     return row;
   }

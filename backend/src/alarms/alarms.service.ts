@@ -36,7 +36,10 @@ export class AlarmsService {
   ) {}
 
   async list(): Promise<Alarm[]> {
-    return currentManager().find(Alarm, { order: { onsetTs: 'DESC' }, take: 200 });
+    return currentManager().find(Alarm, {
+      order: { onsetTs: 'DESC' },
+      take: 200,
+    });
   }
 
   async listActiveForEquipment(equipmentId: string): Promise<Alarm[]> {
@@ -58,12 +61,21 @@ export class AlarmsService {
   async ack(actor: AuthenticatedUser, id: string): Promise<Alarm> {
     const manager = currentManager();
     const alarm = await this.get(id);
-    const nextState = alarm.state === 'ACTIVE_UNACK' ? 'ACTIVE_ACK' : alarm.state === 'RETURNED_UNACK' ? 'NORMAL' : alarm.state;
-    await manager.update(Alarm, { id }, {
-      state: nextState,
-      ackBy: actor.userId,
-      ackTs: new Date(),
-    });
+    const nextState =
+      alarm.state === 'ACTIVE_UNACK'
+        ? 'ACTIVE_ACK'
+        : alarm.state === 'RETURNED_UNACK'
+          ? 'NORMAL'
+          : alarm.state;
+    await manager.update(
+      Alarm,
+      { id },
+      {
+        state: nextState,
+        ackBy: actor.userId,
+        ackTs: new Date(),
+      },
+    );
 
     await this.audit.record({
       userId: actor.userId,
@@ -86,14 +98,20 @@ export class AlarmsService {
     equipmentId: string,
     laboratoryId: string,
     attemptId: string | null,
-    values: { temperature_c?: number | null; rpm?: number | null; torque_ncm?: number | null },
+    values: {
+      temperature_c?: number | null;
+      rpm?: number | null;
+      torque_ncm?: number | null;
+    },
   ): Promise<void> {
     const manager = currentManager();
     let approved: ThresholdVersion | null = null;
-    let effectiveAttemptId: string | null = attemptId;
+    const effectiveAttemptId: string | null = attemptId;
 
     if (attemptId) {
-      const attempt = await manager.findOne(ProcessAttempt, { where: { id: attemptId } });
+      const attempt = await manager.findOne(ProcessAttempt, {
+        where: { id: attemptId },
+      });
       if (attempt) {
         approved = await manager
           .getRepository(ThresholdVersion)
@@ -163,24 +181,37 @@ export class AlarmsService {
     // Rate-of-Change (RoC) evaluation (safety limit against rapid runaway / fire hazard)
     const now = Date.now();
     const points = this.sampleHistory.get(equipmentId) ?? [];
-    points.push({ ts: now, t: values.temperature_c ?? null, rpm: values.rpm ?? null });
+    points.push({
+      ts: now,
+      t: values.temperature_c ?? null,
+      rpm: values.rpm ?? null,
+    });
     while (points.length > 0 && now - points[0].ts > 120000) {
       points.shift();
     }
     this.sampleHistory.set(equipmentId, points);
 
     // Look back 10s to 45s to measure rate
-    const past = points.find((p) => now - p.ts >= 15000) ?? (points.length >= 5 ? points[0] : null);
+    const past =
+      points.find((p) => now - p.ts >= 15000) ??
+      (points.length >= 5 ? points[0] : null);
     if (past && now - past.ts >= 5000) {
       const dtMin = (now - past.ts) / 60000.0;
       if (dtMin > 0.04) {
         // Temperature RoC
-        if (values.temperature_c !== null && values.temperature_c !== undefined && past.t !== null) {
+        if (
+          values.temperature_c !== null &&
+          values.temperature_c !== undefined &&
+          past.t !== null
+        ) {
           const tRoc = (values.temperature_c - past.t) / dtMin; // °C per minute
-          const tLimits = params['temperature'] ?? fallbackLimits['temperature'];
+          const tLimits =
+            params['temperature'] ?? fallbackLimits['temperature'];
           const maxRise = tLimits?.rate_rise_max ?? 5.0;
           const breachedRise = tRoc > maxRise;
-          const breachedFall = tLimits?.rate_fall_max !== undefined && tRoc < -tLimits.rate_fall_max;
+          const breachedFall =
+            tLimits?.rate_fall_max !== undefined &&
+            tRoc < -tLimits.rate_fall_max;
           await this.applyEvaluation(
             equipmentId,
             laboratoryId,
@@ -196,7 +227,11 @@ export class AlarmsService {
         }
 
         // RPM RoC
-        if (values.rpm !== null && values.rpm !== undefined && past.rpm !== null) {
+        if (
+          values.rpm !== null &&
+          values.rpm !== undefined &&
+          past.rpm !== null
+        ) {
           const rpmRoc = (values.rpm - past.rpm) / dtMin; // RPM per minute
           const rLimits = params['rpm'] ?? fallbackLimits['rpm'];
           const maxRise = rLimits?.rate_rise_max ?? 300.0;
@@ -218,7 +253,11 @@ export class AlarmsService {
     }
   }
 
-  async handleDeviceAlarm(equipmentId: string, laboratoryId: string, detail: Record<string, unknown>): Promise<void> {
+  async handleDeviceAlarm(
+    equipmentId: string,
+    laboratoryId: string,
+    detail: Record<string, unknown>,
+  ): Promise<void> {
     const manager = currentManager();
     const parameter = String(detail.parameter ?? 'temperature');
     const value = typeof detail.value === 'number' ? detail.value : null;
@@ -290,7 +329,10 @@ export class AlarmsService {
     }
   }
 
-  async handleDeviceAlarmCleared(equipmentId: string, detail: Record<string, unknown>): Promise<void> {
+  async handleDeviceAlarmCleared(
+    equipmentId: string,
+    detail: Record<string, unknown>,
+  ): Promise<void> {
     const manager = currentManager();
     const parameter = String(detail.parameter ?? 'temperature');
     await manager
@@ -329,7 +371,8 @@ export class AlarmsService {
       .orderBy('a.onset_ts', 'DESC')
       .getOne();
 
-    const isReturningToActive = breached && existing && existing.state === 'RETURNED_UNACK';
+    const isReturningToActive =
+      breached && existing && existing.state === 'RETURNED_UNACK';
     if ((breached && !existing) || isReturningToActive) {
       const alarm = !existing
         ? manager.create(Alarm, {
@@ -361,9 +404,10 @@ export class AlarmsService {
         equipmentId,
         newValue: { parameter, value, limits, severity },
       });
-      const title = severity === 'CRITICAL'
-        ? `FIRE/SAFETY CRITICAL: ${parameter.toUpperCase()} Rate of Change / High Limit Breached (${value})`
-        : `Threshold Warning: ${parameter.toUpperCase()} exceeded limit (${value})`;
+      const title =
+        severity === 'CRITICAL'
+          ? `FIRE/SAFETY CRITICAL: ${parameter.toUpperCase()} Rate of Change / High Limit Breached (${value})`
+          : `Threshold Warning: ${parameter.toUpperCase()} exceeded limit (${value})`;
       await this.notifications.notifyLabIncharges(
         laboratoryId,
         'ALARM_ACTIVE',
@@ -392,17 +436,25 @@ export class AlarmsService {
         title,
       });
     } else if (!breached && existing) {
-      await manager.update(Alarm, { id: existing.id }, {
-        state: 'RETURNED_UNACK',
-        returnTs: new Date(),
-      });
+      await manager.update(
+        Alarm,
+        { id: existing.id },
+        {
+          state: 'RETURNED_UNACK',
+          returnTs: new Date(),
+        },
+      );
       await this.audit.record({
         action: 'ALARM_RETURNED_TO_NORMAL',
         entityType: 'alarm',
         entityId: existing.id,
         equipmentId,
       });
-      this.notifications.broadcast('ALARM_CLEARED', { equipmentId, parameter, alarmId: existing.id });
+      this.notifications.broadcast('ALARM_CLEARED', {
+        equipmentId,
+        parameter,
+        alarmId: existing.id,
+      });
     }
   }
 }

@@ -48,7 +48,19 @@ export class BackupService {
       const out = fs.createWriteStream(filePath);
       const proc = spawn(
         'pg_dump',
-        ['-h', host, '-p', port, '-U', username, '-d', database, '-F', 'p', '--no-owner'],
+        [
+          '-h',
+          host,
+          '-p',
+          port,
+          '-U',
+          username,
+          '-d',
+          database,
+          '-F',
+          'p',
+          '--no-owner',
+        ],
         { env: { ...process.env, PGPASSWORD: password } },
       );
       proc.stdout.pipe(out);
@@ -73,7 +85,10 @@ export class BackupService {
     const files = fs
       .readdirSync(this.backupDir)
       .filter((f) => f.startsWith('rmp-backup-') && f.endsWith('.sql'))
-      .map((f) => ({ f, mtime: fs.statSync(path.join(this.backupDir, f)).mtimeMs }));
+      .map((f) => ({
+        f,
+        mtime: fs.statSync(path.join(this.backupDir, f)).mtimeMs,
+      }));
     if (files.length === 0) return null;
     const latest = files.sort((a, b) => b.mtime - a.mtime)[0];
     return Date.now() - latest.mtime;
@@ -86,7 +101,11 @@ export class BackupService {
       .filter((f) => f.startsWith('rmp-backup-') && f.endsWith('.sql'))
       .map((f) => {
         const stat = fs.statSync(path.join(this.backupDir, f));
-        return { file: f, sizeBytes: stat.size, createdAt: new Date(stat.mtimeMs).toISOString() };
+        return {
+          file: f,
+          sizeBytes: stat.size,
+          createdAt: new Date(stat.mtimeMs).toISOString(),
+        };
       })
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }

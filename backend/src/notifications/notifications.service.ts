@@ -4,7 +4,6 @@ import { currentManager } from '../common/db/request-context';
 import { newId } from '../common/util/id.util';
 import { Notification } from './entities/notification.entity';
 import { RealtimeGateway } from './realtime.gateway';
-import { AppUser } from '../auth/entities/app-user.entity';
 import { Role } from '../auth/entities/role.entity';
 import { UserRole } from '../auth/entities/user-role.entity';
 import { UserLabScope } from '../auth/entities/user-lab-scope.entity';
@@ -58,7 +57,8 @@ export class NotificationsService {
           durationMin,
           lastUpdated: new Date().toISOString(),
         };
-        existing.priority = input.priority === 'HIGH' ? 'HIGH' : existing.priority;
+        existing.priority =
+          input.priority === 'HIGH' ? 'HIGH' : existing.priority;
         await manager.save(existing);
         this.gateway.pushToUser(input.userId, 'notification_update', existing);
         this.gateway.server?.emit('notification_update', existing);
@@ -99,7 +99,9 @@ export class NotificationsService {
     refId?: string,
   ): Promise<Notification[]> {
     const manager = currentManager();
-    const incharge = await manager.findOne(Role, { where: { code: 'LAB_INCHARGE' } });
+    const incharge = await manager.findOne(Role, {
+      where: { code: 'LAB_INCHARGE' },
+    });
     const admin = await manager.findOne(Role, { where: { code: 'ADMIN' } });
 
     let recipientIds: string[] = [];
@@ -119,18 +121,33 @@ export class NotificationsService {
     }
 
     if (recipientIds.length === 0 && admin) {
-      const adminRoles = await manager.find(UserRole, { where: { roleId: admin.id } });
+      const adminRoles = await manager.find(UserRole, {
+        where: { roleId: admin.id },
+      });
       recipientIds = adminRoles.map((r) => r.userId);
     }
 
     const created: Notification[] = [];
     for (const userId of recipientIds) {
       created.push(
-        await this.create({ userId, type, priority, payload, refEntity, refId, laboratoryId }),
+        await this.create({
+          userId,
+          type,
+          priority,
+          payload,
+          refEntity,
+          refId,
+          laboratoryId,
+        }),
       );
     }
     this.gateway.pushToLaboratory(laboratoryId, type, payload);
-    this.gateway.server?.emit('notification_broadcast', { type, priority, payload, laboratoryId });
+    this.gateway.server?.emit('notification_broadcast', {
+      type,
+      priority,
+      payload,
+      laboratoryId,
+    });
     return created;
   }
 
@@ -151,9 +168,13 @@ export class NotificationsService {
     }
     const labIds = user.laboratoryIds || [];
     return currentManager().find(Notification, {
-      where: labIds.length > 0
-        ? [{ userId: user.userId, seenAt: IsNull() }, { laboratoryId: In(labIds), seenAt: IsNull() }]
-        : { userId: user.userId, seenAt: IsNull() },
+      where:
+        labIds.length > 0
+          ? [
+              { userId: user.userId, seenAt: IsNull() },
+              { laboratoryId: In(labIds), seenAt: IsNull() },
+            ]
+          : { userId: user.userId, seenAt: IsNull() },
       order: { createdAt: 'DESC' },
       take: 50,
     });
@@ -172,12 +193,25 @@ export class NotificationsService {
     }
     const labIds = user.laboratoryIds || [];
     return currentManager().find(Notification, {
-      where: labIds.length > 0
-        ? [
-            { userId: user.userId, seenAt: Not(IsNull()), createdAt: MoreThan(cutoff) },
-            { laboratoryId: In(labIds), seenAt: Not(IsNull()), createdAt: MoreThan(cutoff) },
-          ]
-        : { userId: user.userId, seenAt: Not(IsNull()), createdAt: MoreThan(cutoff) },
+      where:
+        labIds.length > 0
+          ? [
+              {
+                userId: user.userId,
+                seenAt: Not(IsNull()),
+                createdAt: MoreThan(cutoff),
+              },
+              {
+                laboratoryId: In(labIds),
+                seenAt: Not(IsNull()),
+                createdAt: MoreThan(cutoff),
+              },
+            ]
+          : {
+              userId: user.userId,
+              seenAt: Not(IsNull()),
+              createdAt: MoreThan(cutoff),
+            },
       order: { createdAt: 'DESC' },
       take: 30,
     });
@@ -194,14 +228,21 @@ export class NotificationsService {
           .createQueryBuilder()
           .update(Notification)
           .set({ seenAt: new Date() })
-          .where('id = :id AND (user_id = :userId OR laboratory_id IN (:...labIds))', {
-            id,
-            userId: user.userId,
-            labIds,
-          })
+          .where(
+            'id = :id AND (user_id = :userId OR laboratory_id IN (:...labIds))',
+            {
+              id,
+              userId: user.userId,
+              labIds,
+            },
+          )
           .execute();
       } else {
-        await manager.update(Notification, { id, userId: user.userId }, { seenAt: new Date() });
+        await manager.update(
+          Notification,
+          { id, userId: user.userId },
+          { seenAt: new Date() },
+        );
       }
     }
     this.broadcast('notification_seen', { id });
@@ -210,7 +251,11 @@ export class NotificationsService {
   async markAllSeen(user: AuthenticatedUser): Promise<void> {
     const manager = currentManager();
     if (user.isAdmin) {
-      await manager.update(Notification, { seenAt: IsNull() }, { seenAt: new Date() });
+      await manager.update(
+        Notification,
+        { seenAt: IsNull() },
+        { seenAt: new Date() },
+      );
     } else {
       const labIds = user.laboratoryIds || [];
       if (labIds.length > 0) {
@@ -218,20 +263,30 @@ export class NotificationsService {
           .createQueryBuilder()
           .update(Notification)
           .set({ seenAt: new Date() })
-          .where('seen_at IS NULL AND (user_id = :userId OR laboratory_id IN (:...labIds))', {
-            userId: user.userId,
-            labIds,
-          })
+          .where(
+            'seen_at IS NULL AND (user_id = :userId OR laboratory_id IN (:...labIds))',
+            {
+              userId: user.userId,
+              labIds,
+            },
+          )
           .execute();
       } else {
-        await manager.update(Notification, { userId: user.userId, seenAt: IsNull() }, { seenAt: new Date() });
+        await manager.update(
+          Notification,
+          { userId: user.userId, seenAt: IsNull() },
+          { seenAt: new Date() },
+        );
       }
     }
     this.broadcast('notification_seen', { all: true });
   }
 
   /** Part 6.6 escalation: unseen HIGH notifications older than `afterMinutes` escalate to the given Admin user. */
-  async escalateUnseen(afterMinutes: number, escalateToUserId: (laboratoryId: string | null) => Promise<string | null>): Promise<number> {
+  async escalateUnseen(
+    afterMinutes: number,
+    escalateToUserId: (laboratoryId: string | null) => Promise<string | null>,
+  ): Promise<number> {
     const manager = currentManager();
     const cutoff = new Date(Date.now() - afterMinutes * 60_000);
     const stale = await manager
@@ -247,7 +302,11 @@ export class NotificationsService {
     for (const n of stale) {
       const escalateTo = await escalateToUserId(n.laboratoryId);
       if (!escalateTo) continue;
-      await manager.update(Notification, { id: n.id }, { escalatedAt: new Date(), escalatedTo: escalateTo });
+      await manager.update(
+        Notification,
+        { id: n.id },
+        { escalatedAt: new Date(), escalatedTo: escalateTo },
+      );
       // Keep the original `type` unchanged (no "_ESCALATED" string chaining) -- the
       // escalation relationship is carried in payload.escalatedFrom instead.
       const escalation = await this.create({
@@ -261,10 +320,15 @@ export class NotificationsService {
       });
       // Stamp the newly-created escalation notification as already-escalated so it
       // can never be picked up by a future scan and re-escalate itself recursively.
-      await manager.update(Notification, { id: escalation.id }, { escalatedAt: new Date() });
+      await manager.update(
+        Notification,
+        { id: escalation.id },
+        { escalatedAt: new Date() },
+      );
       count++;
     }
-    if (count > 0) this.logger.log(`Escalated ${count} unseen high-priority notifications`);
+    if (count > 0)
+      this.logger.log(`Escalated ${count} unseen high-priority notifications`);
     return count;
   }
 }

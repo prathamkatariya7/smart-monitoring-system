@@ -6,7 +6,10 @@ import { DataGap } from './entities/data-gap.entity';
 /** Part 11: GET /reactors/{id}/live and raw measurement retrieval, RLS-scoped via laboratory_id. */
 @Injectable()
 export class MeasurementsService {
-  async recentForEquipment(equipmentId: string, limit = 50): Promise<Measurement[]> {
+  async recentForEquipment(
+    equipmentId: string,
+    limit = 50,
+  ): Promise<Measurement[]> {
     return currentManager()
       .getRepository(Measurement)
       .createQueryBuilder('m')

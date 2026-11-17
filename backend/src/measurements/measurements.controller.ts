@@ -15,7 +15,10 @@ export class MeasurementsController {
 
   @Get('reactors/:id/measurements')
   recent(@Param('id') id: string, @Query('limit') limit?: string) {
-    return this.measurements.recentForEquipment(id, limit ? parseInt(limit, 10) : 50);
+    return this.measurements.recentForEquipment(
+      id,
+      limit ? parseInt(limit, 10) : 50,
+    );
   }
 
   @Roles('ADMIN')

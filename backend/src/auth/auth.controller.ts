@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
@@ -56,7 +64,10 @@ export class AuthController {
   // Admin may grant the BOROSIL_ADMIN role).
   @Roles('ADMIN', 'BOROSIL_ADMIN')
   @Post('users')
-  createUser(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateUserDto) {
+  createUser(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateUserDto,
+  ) {
     return this.auth.createUser(user, dto);
   }
 
@@ -90,7 +101,10 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Post('mfa/confirm')
-  confirmMfa(@CurrentUser() user: AuthenticatedUser, @Body('code') code: string) {
+  confirmMfa(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body('code') code: string,
+  ) {
     return this.auth.confirmMfaEnrolment(user.userId, code);
   }
 }

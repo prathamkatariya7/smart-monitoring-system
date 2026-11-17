@@ -37,6 +37,10 @@ export interface AppConfig {
     dbUsername: string;
     dbPassword: string;
   };
+  security: {
+    allowDevDeviceAutoRegistration: boolean;
+    requestBodyLimit: string;
+  };
 }
 
 export default (): AppConfig => ({
@@ -91,5 +95,11 @@ export default (): AppConfig => ({
     // migration superuser creds (same trust tier as DDL, Part 10 migration runner).
     dbUsername: process.env.MIGRATION_DB_USERNAME ?? 'postgres',
     dbPassword: process.env.MIGRATION_DB_PASSWORD ?? '',
+  },
+  security: {
+    allowDevDeviceAutoRegistration:
+      process.env.ALLOW_DEV_DEVICE_AUTO_REGISTER === 'true' &&
+      process.env.NODE_ENV !== 'production',
+    requestBodyLimit: process.env.REQUEST_BODY_LIMIT ?? '1mb',
   },
 });

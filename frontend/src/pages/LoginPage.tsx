@@ -45,7 +45,7 @@ export function LoginPage() {
         <Typography.Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 24 }}>
           Sign in to continue
         </Typography.Text>
-        {error && <Alert type="error" message={error} style={{ marginBottom: 16 }} showIcon />}
+        {error && <Alert type="error" title={error} style={{ marginBottom: 16 }} showIcon />}
         <Form layout="vertical" onFinish={onFinish} disabled={loading}>
           <Form.Item name="username" label="Username" rules={[{ required: true }]}>
             <Input autoFocus autoComplete="username" />

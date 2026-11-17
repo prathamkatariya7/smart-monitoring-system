@@ -1,11 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ProcessesService } from './processes.service';
 import { CreateProcessDto } from './dto/create-process.dto';
 import { RescheduleProcessDto } from './dto/reschedule-process.dto';
@@ -42,13 +35,20 @@ export class ProcessesController {
 
   @Roles('ADMIN', 'LAB_INCHARGE')
   @Post('processes')
-  create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateProcessDto) {
+  create(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateProcessDto,
+  ) {
     return this.processes.create(user, dto);
   }
 
   @Roles('ADMIN', 'LAB_INCHARGE')
   @Post('processes/:id/reschedule')
-  reschedule(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: RescheduleProcessDto) {
+  reschedule(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: RescheduleProcessDto,
+  ) {
     return this.processes.reschedule(user, id, dto, dto.reason);
   }
 
@@ -62,7 +62,11 @@ export class ProcessesController {
   }
 
   @Post('processes/:id/assign/reject')
-  rejectAssignment(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: PickListReasonDto) {
+  rejectAssignment(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: PickListReasonDto,
+  ) {
     return this.processes.rejectAssignment(user, id, dto.reason);
   }
 
@@ -72,7 +76,11 @@ export class ProcessesController {
   }
 
   @Post('processes/:id/pause')
-  pause(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: PickListReasonDto) {
+  pause(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: PickListReasonDto,
+  ) {
     return this.processes.pause(user, id, dto.reason);
   }
 
@@ -82,36 +90,60 @@ export class ProcessesController {
   }
 
   @Post('processes/:id/complete')
-  complete(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body('onBehalf') onBehalf?: boolean) {
+  complete(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body('onBehalf') onBehalf?: boolean,
+  ) {
     return this.processes.complete(user, id, !!onBehalf);
   }
 
   @Roles('ADMIN', 'LAB_INCHARGE')
   @Post('processes/:id/extend')
-  extend(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ExtendProcessDto) {
+  extend(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: ExtendProcessDto,
+  ) {
     return this.processes.extend(user, id, dto.newPlannedDurationS, dto.reason);
   }
 
   @Roles('ADMIN', 'LAB_INCHARGE')
   @Post('processes/:id/cancel')
-  cancel(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ReasonRequiredDto) {
+  cancel(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: ReasonRequiredDto,
+  ) {
     return this.processes.cancel(user, id, dto.reason);
   }
 
   @Post('processes/:id/abort')
-  abort(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ReasonRequiredDto) {
+  abort(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: ReasonRequiredDto,
+  ) {
     return this.processes.abort(user, id, dto.reason);
   }
 
   @Roles('ADMIN', 'LAB_INCHARGE')
   @Post('processes/:id/restart')
-  restart(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ReasonRequiredDto) {
+  restart(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: ReasonRequiredDto,
+  ) {
     return this.processes.restart(user, id, dto.reason);
   }
 
   @Roles('ADMIN', 'LAB_INCHARGE')
   @Post('processes/:id/handover')
-  requestHandover(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: RequestHandoverDto) {
+  requestHandover(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: RequestHandoverDto,
+  ) {
     return this.processes.requestHandover(user, id, dto.toUserId, dto.reason);
   }
 
@@ -122,7 +154,11 @@ export class ProcessesController {
 
   @Roles('ADMIN', 'LAB_INCHARGE')
   @Post('handovers/:id/override')
-  overrideHandover(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ReasonRequiredDto) {
+  overrideHandover(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: ReasonRequiredDto,
+  ) {
     return this.processes.overrideHandover(user, id, dto.reason);
   }
 
@@ -132,13 +168,20 @@ export class ProcessesController {
   }
 
   @Post('processes/:id/thresholds')
-  setThresholds(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: SetThresholdsDto) {
+  setThresholds(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: SetThresholdsDto,
+  ) {
     return this.processes.setThresholds(user, id, dto.params, dto.reason);
   }
 
   @Roles('ADMIN', 'LAB_INCHARGE')
   @Post('thresholds/:versionId/approve')
-  approveThreshold(@CurrentUser() user: AuthenticatedUser, @Param('versionId') versionId: string) {
+  approveThreshold(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('versionId') versionId: string,
+  ) {
     return this.processes.approveThreshold(user, versionId);
   }
 

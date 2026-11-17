@@ -38,14 +38,24 @@ export class HealthController {
     } catch {
       // statfs unavailable on this platform -- not fatal, just omit disk stats.
     }
-    const diskLow = diskFreeBytes !== null && diskTotalBytes !== null && diskFreeBytes / diskTotalBytes < 0.1;
+    const diskLow =
+      diskFreeBytes !== null &&
+      diskTotalBytes !== null &&
+      diskFreeBytes / diskTotalBytes < 0.1;
 
     const backupAgeMs = this.backup.latestBackupAgeMs();
-    const backupStale = backupAgeMs === null || backupAgeMs > 36 * 60 * 60 * 1000; // > 36h since last backup
+    const backupStale =
+      backupAgeMs === null || backupAgeMs > 36 * 60 * 60 * 1000; // > 36h since last backup
 
     const licenceStatus = this.licence.status();
 
-    const degraded = !dbOk || !brokerOk || diskLow || backupStale || !licenceStatus.valid || licenceStatus.expired;
+    const degraded =
+      !dbOk ||
+      !brokerOk ||
+      diskLow ||
+      backupStale ||
+      !licenceStatus.valid ||
+      licenceStatus.expired;
 
     return {
       status: !dbOk || !brokerOk ? 'critical' : degraded ? 'degraded' : 'ok',
@@ -56,7 +66,11 @@ export class HealthController {
         disk:
           diskFreeBytes === null
             ? 'unknown'
-            : { freeBytes: diskFreeBytes, totalBytes: diskTotalBytes, low: diskLow },
+            : {
+                freeBytes: diskFreeBytes,
+                totalBytes: diskTotalBytes,
+                low: diskLow,
+              },
         backup: {
           lastBackupAgeMs: backupAgeMs,
           stale: backupStale,

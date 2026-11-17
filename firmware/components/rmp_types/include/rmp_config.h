@@ -57,9 +57,13 @@ constexpr uint32_t MOTOR_BAUD = 9600;
 constexpr uint32_t MOTOR_MIN_GAP_MS = 120;
 constexpr float    MOTOR_TQ_SCALE_NCM = 1.0f;  // [VERIFY] per motor model -- bench-confirm with the console `motor` command
 
-// DWIN (M1) -- [VERIFY] baud + VP addresses against the DGUS project; these are the
-// Arduino prototype's placeholder values, not yet bench-confirmed.
+// DWIN T5L / DMG48320C035_03WN (commercial grade, native portrait 320x480).
+// UART2 uses TTL/CMOS 8N1; 115200 is the panel's typical baud rate. VP addresses
+// are owned by the checked-in DGUS layout contract under RMP_HMI.
 constexpr uint32_t DWIN_BAUD = 115200;
+constexpr uint16_t DWIN_WIDTH = 320;
+constexpr uint16_t DWIN_HEIGHT = 480;
+constexpr uint8_t DWIN_ROTATION = 0;
 constexpr uint16_t VP_TEMP = 0x1000, VP_RPM = 0x1002, VP_TORQUE = 0x1004;
 constexpr uint16_t VP_STATUS_TXT = 0x2000, VP_NET_TXT = 0x2020, VP_CLOCK_TXT = 0x2040;
 constexpr uint16_t PAGE_BOOT = 0, PAGE_RUNNING = 1;

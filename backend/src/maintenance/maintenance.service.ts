@@ -19,13 +19,17 @@ export class MaintenanceService {
   }
 
   async get(id: string): Promise<MaintenanceRecord> {
-    const row = await currentManager().findOne(MaintenanceRecord, { where: { id } });
+    const row = await currentManager().findOne(MaintenanceRecord, {
+      where: { id },
+    });
     if (!row) throw new NotFoundException('Maintenance record not found');
     return row;
   }
 
   async due(withinDays = 30): Promise<MaintenanceRecord[]> {
-    const cutoff = new Date(Date.now() + withinDays * 86_400_000).toISOString().slice(0, 10);
+    const cutoff = new Date(Date.now() + withinDays * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
     return currentManager()
       .getRepository(MaintenanceRecord)
       .createQueryBuilder('m')
@@ -35,7 +39,10 @@ export class MaintenanceService {
       .getMany();
   }
 
-  async create(actor: AuthenticatedUser, dto: CreateMaintenanceDto): Promise<MaintenanceRecord> {
+  async create(
+    actor: AuthenticatedUser,
+    dto: CreateMaintenanceDto,
+  ): Promise<MaintenanceRecord> {
     const manager = currentManager();
     const row = manager.create(MaintenanceRecord, {
       id: newId(),

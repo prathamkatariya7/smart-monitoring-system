@@ -35,7 +35,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     if (!user || user.status !== 'ACTIVE') {
       throw new Error('User not found or inactive');
     }
-    const userRoles = await manager.find(UserRole, { where: { userId: user.id } });
+    const userRoles = await manager.find(UserRole, {
+      where: { userId: user.id },
+    });
     const roleIds = userRoles.map((r) => r.roleId);
     const roles = roleIds.length
       ? await manager
@@ -47,7 +49,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     const roleCodes = roles.map((r) => r.code);
     const isAdmin = roleCodes.includes('ADMIN');
 
-    const scopes = await manager.find(UserLabScope, { where: { userId: user.id } });
+    const scopes = await manager.find(UserLabScope, {
+      where: { userId: user.id },
+    });
     const laboratoryIds = scopes.map((s) => s.laboratoryId);
 
     return {

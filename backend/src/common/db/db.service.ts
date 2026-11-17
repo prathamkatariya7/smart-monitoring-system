@@ -28,17 +28,23 @@ export class Db {
       const uuidPattern = /^[0-9a-fA-F-]{36}$/;
       const safeLabIds = ctx.laboratoryIds.filter((id) => uuidPattern.test(id));
       if (safeLabIds.length !== ctx.laboratoryIds.length) {
-        throw new Error('Invalid laboratory id encountered while building RLS context');
+        throw new Error(
+          'Invalid laboratory id encountered while building RLS context',
+        );
       }
       await queryRunner.query(`SET LOCAL app.is_admin = '${isAdminLiteral}'`);
-      await queryRunner.query(`SET LOCAL app.current_laboratory_ids = '${safeLabIds.join(',')}'`);
+      await queryRunner.query(
+        `SET LOCAL app.current_laboratory_ids = '${safeLabIds.join(',')}'`,
+      );
       const rlsCtx: RlsContext = {
         manager: queryRunner.manager,
         isAdmin: ctx.isAdmin,
         laboratoryIds: ctx.laboratoryIds,
         userId: ctx.userId,
       };
-      const result = await rlsStorage.run(rlsCtx, () => fn(queryRunner.manager));
+      const result = await rlsStorage.run(rlsCtx, () =>
+        fn(queryRunner.manager),
+      );
       await queryRunner.commitTransaction();
       return result;
     } catch (err) {

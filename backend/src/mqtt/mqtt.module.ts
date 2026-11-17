@@ -8,7 +8,13 @@ import { AlarmsModule } from '../alarms/alarms.module';
 
 @Module({
   imports: [AlarmsModule],
-  providers: [MqttClientService, IngestionService, CommandDispatcherService, CfgDesiredService, DeviceOfflineSchedulerService],
+  providers: [
+    MqttClientService,
+    IngestionService,
+    CommandDispatcherService,
+    CfgDesiredService,
+    DeviceOfflineSchedulerService,
+  ],
   exports: [MqttClientService, CommandDispatcherService, CfgDesiredService],
 })
 export class MqttModule implements OnModuleInit {

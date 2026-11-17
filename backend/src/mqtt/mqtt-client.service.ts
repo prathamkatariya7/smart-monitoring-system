@@ -1,9 +1,17 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as mqtt from 'mqtt';
 
-export type MqttMessageHandler = (topic: string, payload: Buffer) => void | Promise<void>;
+export type MqttMessageHandler = (
+  topic: string,
+  payload: Buffer,
+) => void | Promise<void>;
 
 /**
  * Backend's own MQTT client (Part 9.1 ingestion worker / command dispatcher).
@@ -15,7 +23,10 @@ export type MqttMessageHandler = (topic: string, payload: Buffer) => void | Prom
 export class MqttClientService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MqttClientService.name);
   private client?: mqtt.MqttClient;
-  private readonly handlers: Array<{ topicFilter: string; handler: MqttMessageHandler }> = [];
+  private readonly handlers: Array<{
+    topicFilter: string;
+    handler: MqttMessageHandler;
+  }> = [];
 
   constructor(private readonly config: ConfigService) {}
 
@@ -32,8 +43,10 @@ export class MqttClientService implements OnModuleInit, OnModuleDestroy {
       rejectUnauthorized: true,
     };
     if (caPath && fs.existsSync(caPath)) options.ca = fs.readFileSync(caPath);
-    if (certPath && fs.existsSync(certPath)) options.cert = fs.readFileSync(certPath);
-    if (keyPath && fs.existsSync(keyPath)) options.key = fs.readFileSync(keyPath);
+    if (certPath && fs.existsSync(certPath))
+      options.cert = fs.readFileSync(certPath);
+    if (keyPath && fs.existsSync(keyPath))
+      options.key = fs.readFileSync(keyPath);
 
     this.client = mqtt.connect(url, options);
     this.client.on('connect', () => {
@@ -42,7 +55,9 @@ export class MqttClientService implements OnModuleInit, OnModuleDestroy {
         this.client!.subscribe(topicFilter, { qos: 1 });
       }
     });
-    this.client.on('error', (err) => this.logger.error(`MQTT error: ${err.message}`));
+    this.client.on('error', (err) =>
+      this.logger.error(`MQTT error: ${err.message}`),
+    );
     this.client.on('message', (topic, payload) => {
       for (const { topicFilter, handler } of this.handlers) {
         if (this.topicMatches(topicFilter, topic)) {
@@ -50,11 +65,15 @@ export class MqttClientService implements OnModuleInit, OnModuleDestroy {
             const res = handler(topic, payload);
             if (res && typeof (res as Promise<void>).catch === 'function') {
               (res as Promise<void>).catch((err: any) => {
-                this.logger.error(`Async handler for ${topicFilter} failed on topic ${topic}: ${err?.message ?? err}`);
+                this.logger.error(
+                  `Async handler for ${topicFilter} failed on topic ${topic}: ${err?.message ?? err}`,
+                );
               });
             }
           } catch (err: any) {
-            this.logger.error(`Handler for ${topicFilter} threw on topic ${topic}: ${err.message}`);
+            this.logger.error(
+              `Handler for ${topicFilter} threw on topic ${topic}: ${err.message}`,
+            );
           }
         }
       }
@@ -73,7 +92,11 @@ export class MqttClientService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  publish(topic: string, payload: string | Buffer, opts: mqtt.IClientPublishOptions = { qos: 1 }): void {
+  publish(
+    topic: string,
+    payload: string | Buffer,
+    opts: mqtt.IClientPublishOptions = { qos: 1 },
+  ): void {
     this.client?.publish(topic, payload, opts, (err) => {
       if (err) this.logger.error(`Publish to ${topic} failed: ${err.message}`);
     });

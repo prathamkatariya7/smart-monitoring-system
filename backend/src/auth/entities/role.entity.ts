@@ -9,7 +9,13 @@ export class Role {
   id: string;
 
   @Column({ unique: true })
-  code: 'ADMIN' | 'SUPPORT' | 'LAB_INCHARGE' | 'ANALYST' | 'AUDITOR' | 'BOROSIL_ADMIN';
+  code:
+    | 'ADMIN'
+    | 'SUPPORT'
+    | 'LAB_INCHARGE'
+    | 'ANALYST'
+    | 'AUDITOR'
+    | 'BOROSIL_ADMIN';
 
   @Column()
   name: string;

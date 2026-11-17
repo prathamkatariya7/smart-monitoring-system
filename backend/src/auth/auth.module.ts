@@ -16,7 +16,13 @@ import { UserLabScope } from './entities/user-lab-scope.entity';
   imports: [
     PassportModule,
     JwtModule.register({}),
-    TypeOrmModule.forFeature([AppUser, Role, Permission, UserRole, UserLabScope]),
+    TypeOrmModule.forFeature([
+      AppUser,
+      Role,
+      Permission,
+      UserRole,
+      UserLabScope,
+    ]),
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, RolesGuard],

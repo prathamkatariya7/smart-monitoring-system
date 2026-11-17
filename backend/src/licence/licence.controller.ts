@@ -1,4 +1,12 @@
-import { BadRequestException, Body, Controller, Delete, Get, Post, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { LicenceService } from './licence.service';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -38,7 +46,10 @@ export class LicenceController {
 
   @Roles('BOROSIL_ADMIN')
   @Post()
-  async upload(@CurrentUser() user: AuthenticatedUser, @Body() dto: UploadLicenceDto) {
+  async upload(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UploadLicenceDto,
+  ) {
     const publicKeyPath = this.config.get<string>('licence.publicKeyPath')!;
     const filePath = this.config.get<string>('licence.filePath')!;
     if (!fs.existsSync(publicKeyPath)) {
@@ -53,7 +64,9 @@ export class LicenceController {
       Buffer.from(dto.signature, 'base64'),
     );
     if (!valid) {
-      throw new BadRequestException('Licence signature verification failed -- rejected');
+      throw new BadRequestException(
+        'Licence signature verification failed -- rejected',
+      );
     }
 
     fs.writeFileSync(filePath, JSON.stringify(dto, null, 2));

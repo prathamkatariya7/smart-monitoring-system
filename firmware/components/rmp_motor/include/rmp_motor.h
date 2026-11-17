@@ -1,56 +1,77 @@
 #pragma once
-// Heidolph Hei-TORQUE RS232, READ-ONLY (SPEC.md section 8, rule 5: "the Heidolph driver
-// can only send the read-only commands. Do not add a write command"). Ported from the
-// Arduino prototype's motor_hei.h (reference/arduino_m1/motor_hei.h), rehosted off
-// Arduino's Serial2/HardwareSerial onto ESP-IDF's driver/uart.h. Reply formats and the
-// torque scale are [VERIFY] -- see rmp_config.h and the console `motor` command, which
-// deliberately prints the raw, unparsed reply alongside the best-effort parse so the
-// real format can be captured on the bench.
+// Read-only RS-232 motor integration for Heidolph Hei-TORQUE and IKA EUROSTAR
+// control. Detection never sends START/STOP/RESET or any OUT_* command.
 #include <stdint.h>
 #include <stddef.h>
 
 namespace rmp {
 
+enum class MotorType : uint8_t { UNKNOWN = 0, HEIDOLPH = 1, IKA = 2 };
+
+enum class MotorProtocol : uint8_t {
+  NONE = 0,
+  HEIDOLPH_RS232_9600_8N1 = 1,
+  IKA_RS232_9600_7E1 = 2,
+};
+
+struct MotorIdentity {
+  MotorType type = MotorType::UNKNOWN;
+  MotorProtocol protocol = MotorProtocol::NONE;
+  char manufacturer[16] = "";
+  char model[48] = "";
+  // IKA's documented command set does not expose the type-plate serial number;
+  // keep this empty until a serial is supplied by commissioning metadata.
+  char serial[48] = "";
+  bool detected = false;
+};
+
 struct MotorData {
   float rpm = 0;
   float tq_ncm = 0;
   uint8_t flt = 0;
+  bool valid = false;
 };
 
-class HeiMotor {
+class MotorManager {
  public:
-  enum Query : uint8_t { Q_SPEED, Q_TORQUE, Q_FAULT, Q_MOTOR_TEMP, Q_TYPE, Q_SERIAL, Q_TIMER, Q__COUNT };
-  static constexpr const char *CMD_TABLE[Q__COUNT] = {"r", "m", "f", "t", "T", "Q", "z"};
-
   void begin();
-
-  // r + m every cycle, f every cycle if there is time. Returns true when speed AND torque were read.
+  // Poll the selected motor using read-only commands. If the link is absent or
+  // fails repeatedly, the manager re-enters detection and can safely recognize
+  // a hot-swapped motor without issuing a control command.
   bool poll(MotorData &d);
-
-  // Sends one allow-listed query and returns the raw reply line (not parsed). Returns
-  // the reply length, or 0 on timeout/no reply. `out` is NUL-terminated either way.
-  size_t query(Query q, char *out, size_t n);
+  bool detect();
+  const MotorIdentity &identity() const { return identity_; }
+  bool identityChanged() const { return identity_changed_; }
+  void clearIdentityChanged() { identity_changed_ = false; }
 
  private:
-  uint32_t last_tx_ms_ = 0;
+  enum Query : uint8_t { Q_SPEED, Q_TORQUE, Q_FAULT, Q_TYPE, Q_SERIAL, Q__COUNT };
+  static constexpr const char *HEI_COMMANDS[Q__COUNT] = {"r", "m", "f", "T", "Q"};
+
+  void configureHeidolph();
+  void configureIka();
+  size_t queryLine(const char *command, char *out, size_t n);
+  bool pollHeidolph(MotorData &d);
+  bool pollIka(MotorData &d);
+  bool setIdentity(MotorType type, MotorProtocol protocol, const char *model,
+                   const char *serial);
   static float firstNumber(const char *s, bool &ok);
   static uint8_t parseFault(const char *s);
+  static void copySafe(char *dst, size_t n, const char *src);
+  static bool looksLikeIka(const char *s);
+
+  MotorIdentity identity_{};
+  uint32_t last_tx_ms_ = 0;
+  uint32_t next_detect_ms_ = 0;
+  uint8_t consecutive_failures_ = 0;
+  bool identity_changed_ = false;
+  bool uart_installed_ = false;
 };
 
-}  // namespace rmp
+// Compatibility alias for existing call sites; new code should use MotorManager.
+using HeiMotor = MotorManager;
 
-// Compile-time guard: the build FAILS if anything other than the read-only allow-list
-// (r speed, m torque, f fault, t motor temp, T type, Q serial, z timer) is ever put in
-// the command table. Matches the Arduino prototype's guard byte-for-byte.
-constexpr bool rmpHeiTableIsAllowListed() {
-  const char allowed[] = {'r', 'm', 'f', 't', 'T', 'Q', 'z'};
-  for (int i = 0; i < rmp::HeiMotor::Q__COUNT; i++) {
-    const char *c = rmp::HeiMotor::CMD_TABLE[i];
-    if (c[0] == 0 || c[1] != 0) return false;  // exactly one character
-    bool ok = false;
-    for (char a : allowed) if (c[0] == a) ok = true;
-    if (!ok) return false;
-  }
-  return true;
-}
-static_assert(rmpHeiTableIsAllowListed(), "Heidolph command table contains a command outside the read-only allow-list");
+const char *motorTypeName(MotorType type);
+const char *motorProtocolName(MotorProtocol protocol);
+
+}  // namespace rmp

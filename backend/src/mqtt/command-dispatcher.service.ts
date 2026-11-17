@@ -31,7 +31,9 @@ export class CommandDispatcherService {
   ) {}
 
   registerHandlers(): void {
-    this.mqtt.subscribe('rmp/v1/+/ack/cmd', (topic, payload) => this.onAck(topic, payload));
+    this.mqtt.subscribe('rmp/v1/+/ack/cmd', (topic, payload) =>
+      this.onAck(topic, payload),
+    );
   }
 
   /** Send a command to a device; returns the device_command row id (correlation id). */
@@ -74,18 +76,26 @@ export class CommandDispatcherService {
     }
 
     await this.db.runAsAdmin(async (manager) => {
-      const existing = await manager.findOne(DeviceCommand, { where: { id: payload.id } });
+      const existing = await manager.findOne(DeviceCommand, {
+        where: { id: payload.id },
+      });
       if (!existing) {
         this.logger.warn(`ack/cmd for unknown command id ${payload.id}`);
         return;
       }
-      await manager.update(DeviceCommand, { id: payload.id }, {
-        status: payload.status === 'applied' ? 'ACKED' : 'REJECTED',
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        resultJson: { ...payload } as any,
-        ackedAt: new Date(),
-      });
-      this.logger.log(`Command ${existing.cmd} (${payload.id}) -> ${payload.status}`);
+      await manager.update(
+        DeviceCommand,
+        { id: payload.id },
+        {
+          status: payload.status === 'applied' ? 'ACKED' : 'REJECTED',
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          resultJson: { ...payload } as any,
+          ackedAt: new Date(),
+        },
+      );
+      this.logger.log(
+        `Command ${existing.cmd} (${payload.id}) -> ${payload.status}`,
+      );
     });
   }
 }

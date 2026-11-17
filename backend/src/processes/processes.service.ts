@@ -54,7 +54,9 @@ export class ProcessesService {
 
   async list(): Promise<any[]> {
     const manager = currentManager();
-    const processes = await manager.find(Process, { order: { plannedStartUtc: 'DESC' } });
+    const processes = await manager.find(Process, {
+      order: { plannedStartUtc: 'DESC' },
+    });
     const processIds = processes.map((p) => p.id);
     if (processIds.length === 0) return [];
 
@@ -72,10 +74,18 @@ export class ProcessesService {
       ])
       .getRawMany();
 
-    const assignmentsByProcess = new Map<string, Array<{ userId: string; role: string; status: string; userName: string }>>();
+    const assignmentsByProcess = new Map<
+      string,
+      Array<{ userId: string; role: string; status: string; userName: string }>
+    >();
     for (const a of assignments) {
       const list = assignmentsByProcess.get(a.processId) ?? [];
-      list.push({ userId: a.userId, role: a.role, status: a.status, userName: a.userName });
+      list.push({
+        userId: a.userId,
+        role: a.role,
+        status: a.status,
+        userName: a.userName,
+      });
       assignmentsByProcess.set(a.processId, list);
     }
 
@@ -99,7 +109,10 @@ export class ProcessesService {
 
   async getAttempts(processId: string): Promise<ProcessAttempt[]> {
     await this.get(processId);
-    return currentManager().find(ProcessAttempt, { where: { processId }, order: { attemptNo: 'ASC' } });
+    return currentManager().find(ProcessAttempt, {
+      where: { processId },
+      order: { attemptNo: 'ASC' },
+    });
   }
 
   async getCurrentAttempt(processId: string): Promise<ProcessAttempt> {
@@ -132,16 +145,25 @@ export class ProcessesService {
   }
 
   // ---- T1: (new) -> SCHEDULED ----
-  async create(actor: AuthenticatedUser, dto: CreateProcessDto): Promise<Process> {
+  async create(
+    actor: AuthenticatedUser,
+    dto: CreateProcessDto,
+  ): Promise<Process> {
     const manager = currentManager();
-    const equipment = await manager.findOne(Equipment, { where: { id: dto.equipmentId } });
+    const equipment = await manager.findOne(Equipment, {
+      where: { id: dto.equipmentId },
+    });
     if (!equipment) throw new NotFoundException('Reactor not found');
     if (equipment.maintenanceMode) {
-      throw new ConflictException('Reactor is in maintenance mode and cannot be scheduled');
+      throw new ConflictException(
+        'Reactor is in maintenance mode and cannot be scheduled',
+      );
     }
 
     const plannedStart = new Date(dto.plannedStartUtc);
-    const plannedEnd = new Date(plannedStart.getTime() + dto.plannedDurationS * 1000);
+    const plannedEnd = new Date(
+      plannedStart.getTime() + dto.plannedDurationS * 1000,
+    );
 
     const process = manager.create(Process, {
       id: newId(),
@@ -200,7 +222,12 @@ export class ProcessesService {
       entityId: process.id,
       equipmentId: dto.equipmentId,
       processId: process.id,
-      newValue: { name: dto.name, plannedStart, plannedEnd, analystUserIds: dto.analystUserIds },
+      newValue: {
+        name: dto.name,
+        plannedStart,
+        plannedEnd,
+        analystUserIds: dto.analystUserIds,
+      },
     });
 
     await this.pushToBoundDevice(dto.equipmentId);
@@ -212,16 +239,24 @@ export class ProcessesService {
   async reschedule(
     actor: AuthenticatedUser,
     id: string,
-    patch: { plannedStartUtc?: string; plannedDurationS?: number; equipmentId?: string },
+    patch: {
+      plannedStartUtc?: string;
+      plannedDurationS?: number;
+      equipmentId?: string;
+    },
     reason: string,
   ): Promise<Process> {
     const manager = currentManager();
     const process = await this.get(id);
     if (process.status !== 'SCHEDULED') {
-      throw new ConflictException('Only a SCHEDULED process can be rescheduled');
+      throw new ConflictException(
+        'Only a SCHEDULED process can be rescheduled',
+      );
     }
 
-    const plannedStart = patch.plannedStartUtc ? new Date(patch.plannedStartUtc) : process.plannedStartUtc;
+    const plannedStart = patch.plannedStartUtc
+      ? new Date(patch.plannedStartUtc)
+      : process.plannedStartUtc;
     const durationS = patch.plannedDurationS ?? process.plannedDurationS;
     const plannedEnd = new Date(plannedStart.getTime() + durationS * 1000);
 
@@ -232,15 +267,21 @@ export class ProcessesService {
     };
 
     try {
-      await manager.update(Process, { id }, {
-        plannedStartUtc: plannedStart,
-        plannedDurationS: durationS,
-        plannedEndUtc: plannedEnd,
-        equipmentId: patch.equipmentId ?? process.equipmentId,
-      });
+      await manager.update(
+        Process,
+        { id },
+        {
+          plannedStartUtc: plannedStart,
+          plannedDurationS: durationS,
+          plannedEndUtc: plannedEnd,
+          equipmentId: patch.equipmentId ?? process.equipmentId,
+        },
+      );
     } catch (err: any) {
       if (err.code === '23P01') {
-        throw new ConflictException('New schedule overlaps another process on this reactor');
+        throw new ConflictException(
+          'New schedule overlaps another process on this reactor',
+        );
       }
       throw err;
     }
@@ -252,7 +293,11 @@ export class ProcessesService {
       entityId: id,
       processId: id,
       previousValue: previous,
-      newValue: { plannedStartUtc: plannedStart, plannedDurationS: durationS, equipmentId: patch.equipmentId },
+      newValue: {
+        plannedStartUtc: plannedStart,
+        plannedDurationS: durationS,
+        equipmentId: patch.equipmentId,
+      },
       reason,
     });
     await this.pushToBoundDevice(process.equipmentId);
@@ -263,7 +308,11 @@ export class ProcessesService {
   }
 
   // ---- T3: SCHEDULED -> ACCEPTED (assignment accepted) ----
-  async acceptAssignment(actor: AuthenticatedUser, processId: string, onBehalfOfUserId?: string): Promise<Process> {
+  async acceptAssignment(
+    actor: AuthenticatedUser,
+    processId: string,
+    onBehalfOfUserId?: string,
+  ): Promise<Process> {
     const manager = currentManager();
     const process = await this.get(processId);
     if (process.status !== 'SCHEDULED') {
@@ -273,12 +322,19 @@ export class ProcessesService {
     const assignment = await manager.findOne(ProcessAssignment, {
       where: { processId, userId: targetUserId, role: 'OWNER' },
     });
-    if (!assignment) throw new NotFoundException('No OWNER assignment for this user on this process');
+    if (!assignment)
+      throw new NotFoundException(
+        'No OWNER assignment for this user on this process',
+      );
 
-    await manager.update(ProcessAssignment, { id: assignment.id }, {
-      status: 'ACCEPTED',
-      respondedAt: new Date(),
-    });
+    await manager.update(
+      ProcessAssignment,
+      { id: assignment.id },
+      {
+        status: 'ACCEPTED',
+        respondedAt: new Date(),
+      },
+    );
     await manager.update(Process, { id: processId }, { status: 'ACCEPTED' });
 
     await this.audit.record({
@@ -287,14 +343,20 @@ export class ProcessesService {
       entityType: 'process',
       entityId: processId,
       processId,
-      reason: onBehalfOfUserId ? 'Accepted on behalf by In-charge/Admin' : undefined,
+      reason: onBehalfOfUserId
+        ? 'Accepted on behalf by In-charge/Admin'
+        : undefined,
     });
     await this.pushToBoundDevice(process.equipmentId);
     return this.get(processId);
   }
 
   // ---- T4: assignment rejected ----
-  async rejectAssignment(actor: AuthenticatedUser, processId: string, reason: string): Promise<Process> {
+  async rejectAssignment(
+    actor: AuthenticatedUser,
+    processId: string,
+    reason: string,
+  ): Promise<Process> {
     const manager = currentManager();
     const process = await this.get(processId);
     if (process.status !== 'SCHEDULED') {
@@ -303,13 +365,20 @@ export class ProcessesService {
     const assignment = await manager.findOne(ProcessAssignment, {
       where: { processId, userId: actor.userId, role: 'OWNER' },
     });
-    if (!assignment) throw new NotFoundException('No OWNER assignment for this user on this process');
+    if (!assignment)
+      throw new NotFoundException(
+        'No OWNER assignment for this user on this process',
+      );
 
-    await manager.update(ProcessAssignment, { id: assignment.id }, {
-      status: 'REJECTED',
-      respondedAt: new Date(),
-      rejectReason: reason,
-    });
+    await manager.update(
+      ProcessAssignment,
+      { id: assignment.id },
+      {
+        status: 'REJECTED',
+        respondedAt: new Date(),
+        rejectReason: reason,
+      },
+    );
     // process remains SCHEDULED with no owner (Part 5.3) -- status unchanged
 
     await this.audit.record({
@@ -335,22 +404,32 @@ export class ProcessesService {
       'process',
       process.id,
     );
-    this.notifications.broadcast('process_updated', { processId: process.id, status: 'SCHEDULED' });
+    this.notifications.broadcast('process_updated', {
+      processId: process.id,
+      status: 'SCHEDULED',
+    });
     await this.pushToBoundDevice(process.equipmentId);
     return this.get(processId);
   }
 
   // ---- T5: ACCEPTED -> RUNNING (Start Process) ----
-  async start(actor: AuthenticatedUser, processId: string, startedOffline = false): Promise<ProcessAttempt> {
+  async start(
+    actor: AuthenticatedUser,
+    processId: string,
+    startedOffline = false,
+  ): Promise<ProcessAttempt> {
     const manager = currentManager();
     const process = await this.get(processId);
     if (process.status !== 'ACCEPTED') {
-      throw new ConflictException('Process must be ACCEPTED before it can start');
+      throw new ConflictException(
+        'Process must be ACCEPTED before it can start',
+      );
     }
     const owner = await manager.findOne(ProcessAssignment, {
       where: { processId, role: 'OWNER', status: 'ACCEPTED' },
     });
-    if (!owner) throw new ConflictException('No accepted owner for this process');
+    if (!owner)
+      throw new ConflictException('No accepted owner for this process');
 
     const now = new Date();
     const attempt = manager.create(ProcessAttempt, {
@@ -375,7 +454,9 @@ export class ProcessesService {
       reason: 'Process started',
     });
 
-    await this.logEvent(attempt.id, 'ATTEMPT_STARTED', actor.userId, { startedOffline });
+    await this.logEvent(attempt.id, 'ATTEMPT_STARTED', actor.userId, {
+      startedOffline,
+    });
     await this.audit.record({
       userId: actor.userId,
       action: 'ATTEMPT_STARTED',
@@ -389,13 +470,22 @@ export class ProcessesService {
   }
 
   // ---- T6: RUNNING -> PAUSED ----
-  async pause(actor: AuthenticatedUser, processId: string, reason: string): Promise<ProcessAttempt> {
+  async pause(
+    actor: AuthenticatedUser,
+    processId: string,
+    reason: string,
+  ): Promise<ProcessAttempt> {
     const manager = currentManager();
     const process = await this.get(processId);
-    if (process.status !== 'RUNNING') throw new ConflictException('Process is not RUNNING');
+    if (process.status !== 'RUNNING')
+      throw new ConflictException('Process is not RUNNING');
     const attempt = await this.getCurrentAttempt(processId);
 
-    await manager.update(ProcessAttempt, { id: attempt.id }, { status: 'PAUSED' });
+    await manager.update(
+      ProcessAttempt,
+      { id: attempt.id },
+      { status: 'PAUSED' },
+    );
     await manager.update(Process, { id: processId }, { status: 'PAUSED' });
     await this.logEvent(attempt.id, 'PROCESS_PAUSED', actor.userId, { reason });
 
@@ -412,13 +502,21 @@ export class ProcessesService {
   }
 
   // ---- T7: PAUSED -> RUNNING ----
-  async resume(actor: AuthenticatedUser, processId: string): Promise<ProcessAttempt> {
+  async resume(
+    actor: AuthenticatedUser,
+    processId: string,
+  ): Promise<ProcessAttempt> {
     const manager = currentManager();
     const process = await this.get(processId);
-    if (process.status !== 'PAUSED') throw new ConflictException('Process is not PAUSED');
+    if (process.status !== 'PAUSED')
+      throw new ConflictException('Process is not PAUSED');
     const attempt = await this.getCurrentAttempt(processId);
 
-    await manager.update(ProcessAttempt, { id: attempt.id }, { status: 'RUNNING' });
+    await manager.update(
+      ProcessAttempt,
+      { id: attempt.id },
+      { status: 'RUNNING' },
+    );
     await manager.update(Process, { id: processId }, { status: 'RUNNING' });
     await this.logEvent(attempt.id, 'PROCESS_RESUMED', actor.userId);
 
@@ -440,8 +538,16 @@ export class ProcessesService {
     if (process.status !== 'RUNNING' && process.status !== 'PAUSED') return;
     const attempt = await this.getCurrentAttempt(processId);
 
-    await manager.update(ProcessAttempt, { id: attempt.id }, { status: 'AWAITING_COMPLETION' });
-    await manager.update(Process, { id: processId }, { status: 'AWAITING_COMPLETION' });
+    await manager.update(
+      ProcessAttempt,
+      { id: attempt.id },
+      { status: 'AWAITING_COMPLETION' },
+    );
+    await manager.update(
+      Process,
+      { id: processId },
+      { status: 'AWAITING_COMPLETION' },
+    );
     await this.logEvent(attempt.id, 'PLANNED_END_REACHED', null);
 
     await this.audit.record({
@@ -454,7 +560,11 @@ export class ProcessesService {
   }
 
   // ---- T9: AWAITING_COMPLETION -> COMPLETED (Submit) ----
-  async complete(actor: AuthenticatedUser, processId: string, onBehalf = false): Promise<ProcessAttempt> {
+  async complete(
+    actor: AuthenticatedUser,
+    processId: string,
+    onBehalf = false,
+  ): Promise<ProcessAttempt> {
     const manager = currentManager();
     const process = await this.get(processId);
     if (process.status !== 'AWAITING_COMPLETION') {
@@ -463,10 +573,20 @@ export class ProcessesService {
     const attempt = await this.getCurrentAttempt(processId);
     const now = new Date();
 
-    await manager.update(ProcessAttempt, { id: attempt.id }, { status: 'COMPLETED', endTs: now });
+    await manager.update(
+      ProcessAttempt,
+      { id: attempt.id },
+      { status: 'COMPLETED', endTs: now },
+    );
     await manager.update(Process, { id: processId }, { status: 'COMPLETED' });
-    await manager.update(OwnershipHistory, { attemptId: attempt.id, toTs: null as any }, { toTs: now });
-    await this.logEvent(attempt.id, 'PROCESS_COMPLETED', actor.userId, { onBehalf });
+    await manager.update(
+      OwnershipHistory,
+      { attemptId: attempt.id, toTs: null as any },
+      { toTs: now },
+    );
+    await this.logEvent(attempt.id, 'PROCESS_COMPLETED', actor.userId, {
+      onBehalf,
+    });
 
     await this.audit.record({
       userId: actor.userId,
@@ -481,25 +601,43 @@ export class ProcessesService {
   }
 
   // ---- T10: AWAITING_COMPLETION -> RUNNING (extend) ----
-  async extend(actor: AuthenticatedUser, processId: string, newPlannedDurationS: number, reason: string): Promise<ProcessAttempt> {
+  async extend(
+    actor: AuthenticatedUser,
+    processId: string,
+    newPlannedDurationS: number,
+    reason: string,
+  ): Promise<ProcessAttempt> {
     const manager = currentManager();
     const process = await this.get(processId);
     if (process.status !== 'AWAITING_COMPLETION') {
       throw new ConflictException('Process is not awaiting completion');
     }
     const attempt = await this.getCurrentAttempt(processId);
-    const newPlannedEnd = new Date((attempt.startTs?.getTime() ?? Date.now()) + newPlannedDurationS * 1000);
+    const newPlannedEnd = new Date(
+      (attempt.startTs?.getTime() ?? Date.now()) + newPlannedDurationS * 1000,
+    );
 
-    await manager.update(ProcessAttempt, { id: attempt.id }, {
-      status: 'RUNNING',
-      plannedEndTs: newPlannedEnd,
+    await manager.update(
+      ProcessAttempt,
+      { id: attempt.id },
+      {
+        status: 'RUNNING',
+        plannedEndTs: newPlannedEnd,
+      },
+    );
+    await manager.update(
+      Process,
+      { id: processId },
+      {
+        status: 'RUNNING',
+        plannedDurationS: newPlannedDurationS,
+        plannedEndUtc: newPlannedEnd,
+      },
+    );
+    await this.logEvent(attempt.id, 'PROCESS_EXTENDED', actor.userId, {
+      newPlannedDurationS,
+      reason,
     });
-    await manager.update(Process, { id: processId }, {
-      status: 'RUNNING',
-      plannedDurationS: newPlannedDurationS,
-      plannedEndUtc: newPlannedEnd,
-    });
-    await this.logEvent(attempt.id, 'PROCESS_EXTENDED', actor.userId, { newPlannedDurationS, reason });
 
     await this.audit.record({
       userId: actor.userId,
@@ -515,11 +653,17 @@ export class ProcessesService {
   }
 
   // ---- T11: SCHEDULED/ACCEPTED -> CANCELLED ----
-  async cancel(actor: AuthenticatedUser, processId: string, reason: string): Promise<Process> {
+  async cancel(
+    actor: AuthenticatedUser,
+    processId: string,
+    reason: string,
+  ): Promise<Process> {
     const manager = currentManager();
     const process = await this.get(processId);
     if (process.status !== 'SCHEDULED' && process.status !== 'ACCEPTED') {
-      throw new ConflictException('Only a SCHEDULED or ACCEPTED process can be cancelled');
+      throw new ConflictException(
+        'Only a SCHEDULED or ACCEPTED process can be cancelled',
+      );
     }
     await manager.update(Process, { id: processId }, { status: 'CANCELLED' });
 
@@ -546,29 +690,52 @@ export class ProcessesService {
       'process',
       process.id,
     );
-    this.notifications.broadcast('process_updated', { processId: process.id, status: 'CANCELLED' });
+    this.notifications.broadcast('process_updated', {
+      processId: process.id,
+      status: 'CANCELLED',
+    });
     await this.pushToBoundDevice(process.equipmentId);
     return this.get(processId);
   }
 
   // ---- T12: RUNNING/PAUSED -> ABORTED ----
-  async abort(actor: AuthenticatedUser, processId: string, reason: string): Promise<ProcessAttempt> {
+  async abort(
+    actor: AuthenticatedUser,
+    processId: string,
+    reason: string,
+  ): Promise<ProcessAttempt> {
     const manager = currentManager();
     const process = await this.get(processId);
-    if (process.status !== 'RUNNING' && process.status !== 'PAUSED' && process.status !== 'AWAITING_COMPLETION') {
-      throw new ConflictException('Process is not in a state that can be aborted');
+    if (
+      process.status !== 'RUNNING' &&
+      process.status !== 'PAUSED' &&
+      process.status !== 'AWAITING_COMPLETION'
+    ) {
+      throw new ConflictException(
+        'Process is not in a state that can be aborted',
+      );
     }
     const attempt = await this.getCurrentAttempt(processId);
     const now = new Date();
 
-    await manager.update(ProcessAttempt, { id: attempt.id }, {
-      status: 'ABORTED',
-      endTs: now,
-      endReason: reason,
-    });
+    await manager.update(
+      ProcessAttempt,
+      { id: attempt.id },
+      {
+        status: 'ABORTED',
+        endTs: now,
+        endReason: reason,
+      },
+    );
     await manager.update(Process, { id: processId }, { status: 'ABORTED' });
-    await manager.update(OwnershipHistory, { attemptId: attempt.id, toTs: null as any }, { toTs: now });
-    await this.logEvent(attempt.id, 'PROCESS_ABORTED', actor.userId, { reason });
+    await manager.update(
+      OwnershipHistory,
+      { attemptId: attempt.id, toTs: null as any },
+      { toTs: now },
+    );
+    await this.logEvent(attempt.id, 'PROCESS_ABORTED', actor.userId, {
+      reason,
+    });
 
     await this.audit.record({
       userId: actor.userId,
@@ -593,20 +760,31 @@ export class ProcessesService {
       'process',
       process.id,
     );
-    this.notifications.broadcast('process_updated', { processId: process.id, status: 'ABORTED' });
+    this.notifications.broadcast('process_updated', {
+      processId: process.id,
+      status: 'ABORTED',
+    });
     await this.pushToBoundDevice(process.equipmentId);
     return this.getCurrentAttempt(processId);
   }
 
   // ---- T13: ABORTED (or failed COMPLETED) -> new attempt in RUNNING ----
-  async restart(actor: AuthenticatedUser, processId: string, reason: string): Promise<ProcessAttempt> {
+  async restart(
+    actor: AuthenticatedUser,
+    processId: string,
+    reason: string,
+  ): Promise<ProcessAttempt> {
     const manager = currentManager();
     const process = await this.get(processId);
     if (process.status !== 'ABORTED' && process.status !== 'COMPLETED') {
-      throw new ConflictException('Only an ABORTED or COMPLETED process can be restarted');
+      throw new ConflictException(
+        'Only an ABORTED or COMPLETED process can be restarted',
+      );
     }
     const previousAttempt = await this.getCurrentAttempt(processId);
-    const owner = await manager.findOne(ProcessAssignment, { where: { processId, role: 'OWNER' } });
+    const owner = await manager.findOne(ProcessAssignment, {
+      where: { processId, role: 'OWNER' },
+    });
     const now = new Date();
 
     const newAttempt = manager.create(ProcessAttempt, {
@@ -662,7 +840,8 @@ export class ProcessesService {
     const currentOwnership = await manager.findOne(OwnershipHistory, {
       where: { attemptId: attempt.id, toTs: null as any },
     });
-    if (!currentOwnership) throw new ConflictException('No current owner to hand over from');
+    if (!currentOwnership)
+      throw new ConflictException('No current owner to hand over from');
 
     const handover = manager.create(Handover, {
       id: newId(),
@@ -676,7 +855,10 @@ export class ProcessesService {
       reason,
     });
     await manager.save(handover);
-    await this.logEvent(attempt.id, 'HANDOVER_REQUESTED', actor.userId, { toUserId, reason });
+    await this.logEvent(attempt.id, 'HANDOVER_REQUESTED', actor.userId, {
+      toUserId,
+      reason,
+    });
 
     await this.audit.record({
       userId: actor.userId,
@@ -690,12 +872,24 @@ export class ProcessesService {
     return handover;
   }
 
-  private async completeHandover(handover: Handover, mode: 'ACK' | 'OVERRIDE', actor: AuthenticatedUser): Promise<void> {
+  private async completeHandover(
+    handover: Handover,
+    mode: 'ACK' | 'OVERRIDE',
+    actor: AuthenticatedUser,
+  ): Promise<void> {
     const manager = currentManager();
     const now = new Date();
-    await manager.update(Handover, { id: handover.id }, { acknowledgedAt: now, mode });
+    await manager.update(
+      Handover,
+      { id: handover.id },
+      { acknowledgedAt: now, mode },
+    );
 
-    await manager.update(OwnershipHistory, { attemptId: handover.attemptId, toTs: null as any }, { toTs: now });
+    await manager.update(
+      OwnershipHistory,
+      { attemptId: handover.attemptId, toTs: null as any },
+      { toTs: now },
+    );
     await manager.save(OwnershipHistory, {
       id: newId(),
       attemptId: handover.attemptId,
@@ -706,24 +900,42 @@ export class ProcessesService {
       handoverId: handover.id,
     });
 
-    const attempt = await manager.findOne(ProcessAttempt, { where: { id: handover.attemptId } });
+    const attempt = await manager.findOne(ProcessAttempt, {
+      where: { id: handover.attemptId },
+    });
     if (attempt) {
-      await manager.update(ProcessAssignment, { processId: attempt.processId, role: 'OWNER' }, {
-        userId: handover.toUser,
-      });
+      await manager.update(
+        ProcessAssignment,
+        { processId: attempt.processId, role: 'OWNER' },
+        {
+          userId: handover.toUser,
+        },
+      );
     }
 
-    await this.logEvent(handover.attemptId, mode === 'ACK' ? 'HANDOVER_ACKNOWLEDGED' : 'HANDOVER_OVERRIDDEN', actor.userId);
+    await this.logEvent(
+      handover.attemptId,
+      mode === 'ACK' ? 'HANDOVER_ACKNOWLEDGED' : 'HANDOVER_OVERRIDDEN',
+      actor.userId,
+    );
   }
 
-  async acknowledgeHandover(actor: AuthenticatedUser, handoverId: string): Promise<Handover> {
+  async acknowledgeHandover(
+    actor: AuthenticatedUser,
+    handoverId: string,
+  ): Promise<Handover> {
     const manager = currentManager();
-    const handover = await manager.findOne(Handover, { where: { id: handoverId } });
+    const handover = await manager.findOne(Handover, {
+      where: { id: handoverId },
+    });
     if (!handover) throw new NotFoundException('Handover not found');
     if (handover.toUser !== actor.userId) {
-      throw new ForbiddenException('Only the incoming analyst may acknowledge their own handover');
+      throw new ForbiddenException(
+        'Only the incoming analyst may acknowledge their own handover',
+      );
     }
-    if (handover.acknowledgedAt) throw new ConflictException('Handover already resolved');
+    if (handover.acknowledgedAt)
+      throw new ConflictException('Handover already resolved');
 
     await this.completeHandover(handover, 'ACK', actor);
     await this.audit.record({
@@ -735,11 +947,18 @@ export class ProcessesService {
     return manager.findOneOrFail(Handover, { where: { id: handoverId } });
   }
 
-  async overrideHandover(actor: AuthenticatedUser, handoverId: string, reason: string): Promise<Handover> {
+  async overrideHandover(
+    actor: AuthenticatedUser,
+    handoverId: string,
+    reason: string,
+  ): Promise<Handover> {
     const manager = currentManager();
-    const handover = await manager.findOne(Handover, { where: { id: handoverId } });
+    const handover = await manager.findOne(Handover, {
+      where: { id: handoverId },
+    });
     if (!handover) throw new NotFoundException('Handover not found');
-    if (handover.acknowledgedAt) throw new ConflictException('Handover already resolved');
+    if (handover.acknowledgedAt)
+      throw new ConflictException('Handover already resolved');
 
     await this.completeHandover(handover, 'OVERRIDE', actor);
     await this.audit.record({
@@ -755,7 +974,10 @@ export class ProcessesService {
   // ---- Thresholds (Part 6.2 / C-08 tighten-only rule) ----
   async getThresholds(processId: string): Promise<ThresholdVersion[]> {
     await this.get(processId);
-    return currentManager().find(ThresholdVersion, { where: { processId }, order: { versionNo: 'ASC' } });
+    return currentManager().find(ThresholdVersion, {
+      where: { processId },
+      order: { versionNo: 'ASC' },
+    });
   }
 
   async setThresholds(
@@ -768,13 +990,20 @@ export class ProcessesService {
     await this.get(processId);
     const versions = await this.getThresholds(processId);
     const approved = versions.filter((v) => v.status === 'APPROVED').pop();
-    if (!approved) throw new ConflictException('No approved threshold version to compare against');
+    if (!approved)
+      throw new ConflictException(
+        'No approved threshold version to compare against',
+      );
 
     const tightening = this.isTightenOnly(approved.paramsJson, params);
     const nextVersionNo = Math.max(...versions.map((v) => v.versionNo)) + 1;
 
     if (tightening) {
-      await manager.update(ThresholdVersion, { id: approved.id }, { status: 'SUPERSEDED' });
+      await manager.update(
+        ThresholdVersion,
+        { id: approved.id },
+        { status: 'SUPERSEDED' },
+      );
       const version = manager.create(ThresholdVersion, {
         id: newId(),
         processId,
@@ -824,17 +1053,33 @@ export class ProcessesService {
     return version;
   }
 
-  async approveThreshold(actor: AuthenticatedUser, versionId: string): Promise<ThresholdVersion> {
+  async approveThreshold(
+    actor: AuthenticatedUser,
+    versionId: string,
+  ): Promise<ThresholdVersion> {
     const manager = currentManager();
-    const version = await manager.findOne(ThresholdVersion, { where: { id: versionId } });
+    const version = await manager.findOne(ThresholdVersion, {
+      where: { id: versionId },
+    });
     if (!version) throw new NotFoundException('Threshold version not found');
-    if (version.status !== 'PROPOSED') throw new ConflictException('Only a PROPOSED version can be approved');
+    if (version.status !== 'PROPOSED')
+      throw new ConflictException('Only a PROPOSED version can be approved');
 
-    const currentApproved = (await this.getThresholds(version.processId)).find((v) => v.status === 'APPROVED');
+    const currentApproved = (await this.getThresholds(version.processId)).find(
+      (v) => v.status === 'APPROVED',
+    );
     if (currentApproved) {
-      await manager.update(ThresholdVersion, { id: currentApproved.id }, { status: 'SUPERSEDED' });
+      await manager.update(
+        ThresholdVersion,
+        { id: currentApproved.id },
+        { status: 'SUPERSEDED' },
+      );
     }
-    await manager.update(ThresholdVersion, { id: versionId }, { status: 'APPROVED', approvedBy: actor.userId });
+    await manager.update(
+      ThresholdVersion,
+      { id: versionId },
+      { status: 'APPROVED', approvedBy: actor.userId },
+    );
 
     await this.audit.record({
       userId: actor.userId,
@@ -843,16 +1088,29 @@ export class ProcessesService {
       entityId: versionId,
       processId: version.processId,
     });
-    return manager.findOneOrFail(ThresholdVersion, { where: { id: versionId } });
+    return manager.findOneOrFail(ThresholdVersion, {
+      where: { id: versionId },
+    });
   }
 
-  async rejectThreshold(actor: AuthenticatedUser, versionId: string, reason: string): Promise<ThresholdVersion> {
+  async rejectThreshold(
+    actor: AuthenticatedUser,
+    versionId: string,
+    reason: string,
+  ): Promise<ThresholdVersion> {
     const manager = currentManager();
-    const version = await manager.findOne(ThresholdVersion, { where: { id: versionId } });
+    const version = await manager.findOne(ThresholdVersion, {
+      where: { id: versionId },
+    });
     if (!version) throw new NotFoundException('Threshold version not found');
-    if (version.status !== 'PROPOSED') throw new ConflictException('Only a PROPOSED version can be rejected');
+    if (version.status !== 'PROPOSED')
+      throw new ConflictException('Only a PROPOSED version can be rejected');
 
-    await manager.update(ThresholdVersion, { id: versionId }, { status: 'REJECTED' });
+    await manager.update(
+      ThresholdVersion,
+      { id: versionId },
+      { status: 'REJECTED' },
+    );
     await this.audit.record({
       userId: actor.userId,
       action: 'THRESHOLD_WIDEN_REJECTED',
@@ -861,7 +1119,9 @@ export class ProcessesService {
       processId: version.processId,
       reason,
     });
-    return manager.findOneOrFail(ThresholdVersion, { where: { id: versionId } });
+    return manager.findOneOrFail(ThresholdVersion, {
+      where: { id: versionId },
+    });
   }
 
   /**
@@ -873,13 +1133,20 @@ export class ProcessesService {
    * so an ambiguous change must go through approval rather than be
    * auto-approved by a heuristic that might be wrong.
    */
-  private isTightenOnly(oldParams: Record<string, any>, newParams: Record<string, any>): boolean {
-    const flatten = (obj: Record<string, any>, prefix = ''): Record<string, number> => {
+  private isTightenOnly(
+    oldParams: Record<string, any>,
+    newParams: Record<string, any>,
+  ): boolean {
+    const flatten = (
+      obj: Record<string, any>,
+      prefix = '',
+    ): Record<string, number> => {
       const out: Record<string, number> = {};
       for (const [k, v] of Object.entries(obj ?? {})) {
         const key = prefix ? `${prefix}.${k}` : k;
         if (typeof v === 'number') out[key] = v;
-        else if (typeof v === 'object' && v !== null) Object.assign(out, flatten(v, key));
+        else if (typeof v === 'object' && v !== null)
+          Object.assign(out, flatten(v, key));
       }
       return out;
     };
@@ -893,7 +1160,11 @@ export class ProcessesService {
       const lower = key.toLowerCase();
       if (lower.endsWith('min')) {
         if (newVal < oldVal) return false; // floor lowered = widened
-      } else if (lower.endsWith('max') || lower.endsWith('maxrise') || lower.endsWith('maxfall')) {
+      } else if (
+        lower.endsWith('max') ||
+        lower.endsWith('maxrise') ||
+        lower.endsWith('maxfall')
+      ) {
         if (newVal > oldVal) return false; // ceiling raised = widened
       } else {
         return false; // unrecognized shape -- safer to require approval

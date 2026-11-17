@@ -16,8 +16,12 @@ export class Grants1730000000010 implements MigrationInterface {
       GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO rmp_app;
     `);
     // re-apply the stricter grants (table-level GRANT ALL above would otherwise widen them back)
-    await queryRunner.query(`REVOKE UPDATE, DELETE ON measurement FROM rmp_app;`);
-    await queryRunner.query(`REVOKE UPDATE, DELETE ON audit_record FROM rmp_app;`);
+    await queryRunner.query(
+      `REVOKE UPDATE, DELETE ON measurement FROM rmp_app;`,
+    );
+    await queryRunner.query(
+      `REVOKE UPDATE, DELETE ON audit_record FROM rmp_app;`,
+    );
     await queryRunner.query(`
       GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO rmp_app;
     `);

@@ -1,6 +1,21 @@
-import { ArrayNotEmpty, IsArray, IsIn, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import {
+  ArrayNotEmpty,
+  IsArray,
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MinLength,
+} from 'class-validator';
 
-const ROLE_CODES = ['ADMIN', 'BOROSIL_ADMIN', 'SUPPORT', 'LAB_INCHARGE', 'ANALYST', 'AUDITOR'];
+const ROLE_CODES = [
+  'ADMIN',
+  'BOROSIL_ADMIN',
+  'SUPPORT',
+  'LAB_INCHARGE',
+  'ANALYST',
+  'AUDITOR',
+];
 
 export class CreateUserDto {
   @IsString()

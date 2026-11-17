@@ -1,4 +1,13 @@
-import { IsArray, IsDateString, IsInt, IsOptional, IsString, IsUUID, Min, ArrayMinSize } from 'class-validator';
+import {
+  IsArray,
+  IsDateString,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+  ArrayMinSize,
+} from 'class-validator';
 
 export class CreateProcessDto {
   @IsUUID()

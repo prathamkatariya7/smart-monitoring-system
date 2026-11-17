@@ -17,6 +17,13 @@
 
 namespace rmp {
 
+// DWIN DMG48320C035_03WN commercial-grade panel. The DGUS project must be
+// configured in portrait orientation at this native resolution. These values
+// are compile-time contracts used by the generated HMI layout manifest.
+constexpr uint16_t DWIN_PANEL_WIDTH = 320;
+constexpr uint16_t DWIN_PANEL_HEIGHT = 480;
+constexpr uint8_t DWIN_PANEL_ROTATION = 0;
+
 // --- Display Pages (0 to 9) ---
 constexpr uint8_t DWIN_PAGE_BOOT        = 0;  // 0x0000: Boot / POST
 constexpr uint8_t DWIN_PAGE_IDLE        = 1;  // 0x0001: Idle standby
@@ -84,7 +91,14 @@ constexpr uint16_t VP_DOT_NTP         = 0x1314;
 constexpr uint16_t VP_DOT_RTD         = 0x1315;
 constexpr uint16_t VP_DOT_RS232       = 0x1316;
 constexpr uint16_t VP_DOT_FLASH       = 0x1317;
-constexpr uint16_t VP_DOT_MAC         = 0x1318;
+constexpr uint16_t VP_DOT_MAC          = 0x1318;
+
+// Navigation state VPs. DGUS variable/icon controls bind to these values so
+// firmware focus, highlight state and diagnostics window are synchronized.
+constexpr uint16_t VP_HMI_FOCUS        = 0x1320; // page-specific focus index
+constexpr uint16_t VP_DIAG_WINDOW_TOP  = 0x1321; // first visible row, 0..6
+constexpr uint16_t VP_DIAG_FOCUS       = 0x1322; // visible row, 0..2
+constexpr uint16_t VP_ASSIGNMENT_STATE = 0x1323; // 0=unassigned, 1=assigned
 
 // --- Progress Bar VPs (0 to 100 %) ---
 constexpr uint16_t VP_BOOT_PROGRESS   = 0x1306;
@@ -109,6 +123,10 @@ class Dwin {
 
   void writeText(uint16_t vp, const char *s, size_t maxChars = 32);
   void writeValue(uint16_t vp, uint16_t v);
+  // Send all navigation registers under one UART critical section so the
+  // screen cannot observe a half-updated cursor/window state.
+  void writeNavigationState(uint16_t focus, uint16_t diagnosticWindowTop,
+                            uint16_t diagnosticFocus, uint16_t assignmentState);
   void writePowerUpDefaults();
   void sendRaw(const uint8_t *data, size_t len);
 

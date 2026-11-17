@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Put,
+  UseGuards,
+} from '@nestjs/common';
 import { TenancyService } from './tenancy.service';
 import { CreateSiteDto } from './dto/create-site.dto';
 import { CreateLaboratoryDto } from './dto/create-laboratory.dto';
@@ -58,7 +66,10 @@ export class TenancyController {
 
   @Roles('ADMIN')
   @Post('sites')
-  createSite(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateSiteDto) {
+  createSite(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateSiteDto,
+  ) {
     return this.tenancy.createSite(user, dto.name, dto.timeZone);
   }
 
@@ -69,7 +80,10 @@ export class TenancyController {
 
   @Roles('ADMIN')
   @Post('laboratories')
-  createLaboratory(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateLaboratoryDto) {
+  createLaboratory(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateLaboratoryDto,
+  ) {
     return this.tenancy.createLaboratory(user, dto.siteId, dto.name, dto.code);
   }
 }

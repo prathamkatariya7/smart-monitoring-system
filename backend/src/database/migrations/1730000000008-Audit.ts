@@ -61,11 +61,17 @@ export class Audit1730000000008 implements MigrationInterface {
       FOR EACH ROW EXECUTE FUNCTION audit_record_chain();
     `);
 
-    await queryRunner.query(`CREATE INDEX audit_record_entity_idx ON audit_record (entity_type, entity_id, ts_utc);`);
-    await queryRunner.query(`CREATE INDEX audit_record_user_idx ON audit_record (user_id, ts_utc);`);
+    await queryRunner.query(
+      `CREATE INDEX audit_record_entity_idx ON audit_record (entity_type, entity_id, ts_utc);`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX audit_record_user_idx ON audit_record (user_id, ts_utc);`,
+    );
 
     // Append-only: application role may INSERT and SELECT only.
-    await queryRunner.query(`REVOKE UPDATE, DELETE ON audit_record FROM rmp_app;`);
+    await queryRunner.query(
+      `REVOKE UPDATE, DELETE ON audit_record FROM rmp_app;`,
+    );
     await queryRunner.query(`GRANT INSERT, SELECT ON audit_record TO rmp_app;`);
 
     // Verification function: recomputes the same canonical hash formula the
@@ -101,11 +107,15 @@ export class Audit1730000000008 implements MigrationInterface {
       END;
       $$ LANGUAGE plpgsql;
     `);
-    await queryRunner.query(`GRANT EXECUTE ON FUNCTION verify_audit_chain() TO rmp_app;`);
+    await queryRunner.query(
+      `GRANT EXECUTE ON FUNCTION verify_audit_chain() TO rmp_app;`,
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP TRIGGER IF EXISTS audit_record_chain_trigger ON audit_record;`);
+    await queryRunner.query(
+      `DROP TRIGGER IF EXISTS audit_record_chain_trigger ON audit_record;`,
+    );
     await queryRunner.query(`DROP FUNCTION IF EXISTS audit_record_chain();`);
     await queryRunner.query(`DROP TABLE IF EXISTS audit_record;`);
   }

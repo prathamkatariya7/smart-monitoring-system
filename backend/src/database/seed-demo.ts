@@ -33,7 +33,12 @@ import { AuthService } from '../auth/auth.service';
  *
  * Run with: npx ts-node -r tsconfig-paths/register src/database/seed-demo.ts
  */
-async function findOrCreateSite(manager: any, clientId: string, name: string, timeZone: string): Promise<Site> {
+async function findOrCreateSite(
+  manager: any,
+  clientId: string,
+  name: string,
+  timeZone: string,
+): Promise<Site> {
   let site = await manager.findOne(Site, { where: { name } });
   if (!site) {
     site = manager.create(Site, { id: newId(), clientId, name, timeZone });
@@ -45,7 +50,12 @@ async function findOrCreateSite(manager: any, clientId: string, name: string, ti
   return site;
 }
 
-async function findOrCreateLab(manager: any, siteId: string, name: string, code: string): Promise<Laboratory> {
+async function findOrCreateLab(
+  manager: any,
+  siteId: string,
+  name: string,
+  code: string,
+): Promise<Laboratory> {
   let lab = await manager.findOne(Laboratory, { where: { name } });
   if (!lab) {
     lab = manager.create(Laboratory, { id: newId(), siteId, name, code });
@@ -63,9 +73,16 @@ async function findOrCreateReactor(
   reactorNumber: string,
   displayName: string,
 ): Promise<Equipment> {
-  let reactor = await manager.findOne(Equipment, { where: { laboratoryId, reactorNumber } });
+  let reactor = await manager.findOne(Equipment, {
+    where: { laboratoryId, reactorNumber },
+  });
   if (!reactor) {
-    reactor = manager.create(Equipment, { id: newId(), laboratoryId, reactorNumber, displayName });
+    reactor = manager.create(Equipment, {
+      id: newId(),
+      laboratoryId,
+      reactorNumber,
+      displayName,
+    });
     await manager.save(reactor);
     console.log(`Created reactor "${displayName}" (#${reactorNumber})`);
   } else {
@@ -76,9 +93,17 @@ async function findOrCreateReactor(
 
 async function findOrCreateUser(
   manager: any,
-  opts: { name: string; username: string; roleId: string; laboratoryId?: string; reportsToUserId?: string },
+  opts: {
+    name: string;
+    username: string;
+    roleId: string;
+    laboratoryId?: string;
+    reportsToUserId?: string;
+  },
 ): Promise<AppUser> {
-  let user = await manager.findOne(AppUser, { where: { username: opts.username } });
+  let user = await manager.findOne(AppUser, {
+    where: { username: opts.username },
+  });
   if (!user) {
     user = manager.create(AppUser, {
       id: newId(),
@@ -89,7 +114,9 @@ async function findOrCreateUser(
       reportsToUserId: opts.reportsToUserId ?? null,
     });
     await manager.save(user);
-    await manager.save(manager.create(UserRole, { userId: user.id, roleId: opts.roleId }));
+    await manager.save(
+      manager.create(UserRole, { userId: user.id, roleId: opts.roleId }),
+    );
     if (opts.laboratoryId) {
       await manager.save(
         manager.create(UserLabScope, {
@@ -117,31 +144,98 @@ async function seedDemo() {
   }
 
   const roles = await manager.find(Role);
-  const roleIdByCode = Object.fromEntries(roles.map((r: Role) => [r.code, r.id]));
+  const roleIdByCode = Object.fromEntries(
+    roles.map((r: Role) => [r.code, r.id]),
+  );
 
   // Reuse the real Hyderabad Plant site + QC Lab 1 lab + Reactor 25 from
   // seed.ts/earlier sessions instead of duplicating them.
-  const hyderabad = await findOrCreateSite(manager, client.id, 'Hyderabad Plant', 'Asia/Kolkata');
-  const mumbai = await findOrCreateSite(manager, client.id, 'Mumbai Plant', 'Asia/Kolkata');
-  const bangalore = await findOrCreateSite(manager, client.id, 'Bangalore R&D Center', 'Asia/Kolkata');
+  const hyderabad = await findOrCreateSite(
+    manager,
+    client.id,
+    'Hyderabad Plant',
+    'Asia/Kolkata',
+  );
+  const mumbai = await findOrCreateSite(
+    manager,
+    client.id,
+    'Mumbai Plant',
+    'Asia/Kolkata',
+  );
+  const bangalore = await findOrCreateSite(
+    manager,
+    client.id,
+    'Bangalore R&D Center',
+    'Asia/Kolkata',
+  );
 
-  const formulationLab = await findOrCreateLab(manager, hyderabad.id, 'Formulation Lab', 'FORM1');
-  const qcMumbai = await findOrCreateLab(manager, mumbai.id, 'QC Lab Mumbai', 'QCM1');
-  const rndMumbai = await findOrCreateLab(manager, mumbai.id, 'R&D Lab Mumbai', 'RDM1');
-  const pilotBangalore = await findOrCreateLab(manager, bangalore.id, 'Pilot Plant Lab', 'PPL1');
+  const formulationLab = await findOrCreateLab(
+    manager,
+    hyderabad.id,
+    'Formulation Lab',
+    'FORM1',
+  );
+  const qcMumbai = await findOrCreateLab(
+    manager,
+    mumbai.id,
+    'QC Lab Mumbai',
+    'QCM1',
+  );
+  const rndMumbai = await findOrCreateLab(
+    manager,
+    mumbai.id,
+    'R&D Lab Mumbai',
+    'RDM1',
+  );
+  const pilotBangalore = await findOrCreateLab(
+    manager,
+    bangalore.id,
+    'Pilot Plant Lab',
+    'PPL1',
+  );
 
   const labs = [
-    { lab: formulationLab, reactorPrefix: 'FL', lead: 'Anita Rao', analysts: ['Vikram Shah', 'Deepa Nair'] },
-    { lab: qcMumbai, reactorPrefix: 'QCM', lead: 'Rahul Mehta', analysts: ['Sneha Joshi', 'Arjun Pillai'] },
-    { lab: rndMumbai, reactorPrefix: 'RDM', lead: 'Kavita Iyer', analysts: ['Rohan Desai', 'Priya Menon'] },
-    { lab: pilotBangalore, reactorPrefix: 'PPL', lead: 'Suresh Kumar', analysts: ['Divya Reddy', 'Karthik Rao'] },
+    {
+      lab: formulationLab,
+      reactorPrefix: 'FL',
+      lead: 'Anita Rao',
+      analysts: ['Vikram Shah', 'Deepa Nair'],
+    },
+    {
+      lab: qcMumbai,
+      reactorPrefix: 'QCM',
+      lead: 'Rahul Mehta',
+      analysts: ['Sneha Joshi', 'Arjun Pillai'],
+    },
+    {
+      lab: rndMumbai,
+      reactorPrefix: 'RDM',
+      lead: 'Kavita Iyer',
+      analysts: ['Rohan Desai', 'Priya Menon'],
+    },
+    {
+      lab: pilotBangalore,
+      reactorPrefix: 'PPL',
+      lead: 'Suresh Kumar',
+      analysts: ['Divya Reddy', 'Karthik Rao'],
+    },
   ];
 
   let reactorSeq = 101;
   const firstReactorByLab: Record<string, Equipment> = {};
   for (const { lab, reactorPrefix, lead, analysts } of labs) {
-    const r1 = await findOrCreateReactor(manager, lab.id, `${reactorPrefix}-${reactorSeq}`, `Reactor ${reactorSeq}`);
-    const r2 = await findOrCreateReactor(manager, lab.id, `${reactorPrefix}-${reactorSeq + 1}`, `Reactor ${reactorSeq + 1}`);
+    const r1 = await findOrCreateReactor(
+      manager,
+      lab.id,
+      `${reactorPrefix}-${reactorSeq}`,
+      `Reactor ${reactorSeq}`,
+    );
+    const r2 = await findOrCreateReactor(
+      manager,
+      lab.id,
+      `${reactorPrefix}-${reactorSeq + 1}`,
+      `Reactor ${reactorSeq + 1}`,
+    );
     firstReactorByLab[lab.id] = r1;
     reactorSeq += 2;
     void r2;
@@ -166,10 +260,14 @@ async function seedDemo() {
   }
 
   console.log('\nDemo dataset ready:');
-  console.log('  3 sites (Hyderabad Plant, Mumbai Plant, Bangalore R&D Center)');
+  console.log(
+    '  3 sites (Hyderabad Plant, Mumbai Plant, Bangalore R&D Center)',
+  );
   console.log('  5 laboratories (QC Lab 1 + 4 new)');
   console.log('  9 reactors (Reactor 25 + 8 new)');
-  console.log('  4 new Lab In-charges, 8 new Analysts, each correctly lab-scoped');
+  console.log(
+    '  4 new Lab In-charges, 8 new Analysts, each correctly lab-scoped',
+  );
   console.log('\nAll new demo users share the password: ChangeMe123!');
   console.log(
     'Next (optional, for live telemetry on the Dashboard): claim+bind a device to one of the\n' +

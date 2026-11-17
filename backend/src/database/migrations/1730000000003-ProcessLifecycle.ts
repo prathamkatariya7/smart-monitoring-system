@@ -146,7 +146,9 @@ export class ProcessLifecycle1730000000003 implements MigrationInterface {
         created_at     timestamptz NOT NULL DEFAULT now()
       );
     `);
-    await queryRunner.query(`CREATE INDEX process_event_attempt_ts_idx ON process_event (attempt_id, ts);`);
+    await queryRunner.query(
+      `CREATE INDEX process_event_attempt_ts_idx ON process_event (attempt_id, ts);`,
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

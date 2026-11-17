@@ -6,18 +6,75 @@ import { AuditService } from '../audit/audit.service';
 import { AuthenticatedUser } from '../auth/auth.types';
 
 /** Part 6.5 default alert classes; Admin can tune within policy limits. */
-export const DEFAULT_ALERT_CATALOG: Array<Pick<AlertCatalog, 'alertType' | 'class' | 'overridableBy' | 'maxOverrideMin'>> = [
-  { alertType: 'THRESHOLD_WARNING', class: 'WARNING', overridableBy: 'OWNER', maxOverrideMin: 60 },
-  { alertType: 'THRESHOLD_CRITICAL', class: 'CRITICAL', overridableBy: 'OWNER', maxOverrideMin: 15 },
-  { alertType: 'PT100_FAULT', class: 'CRITICAL', overridableBy: 'OWNER', maxOverrideMin: 15 },
-  { alertType: 'MOTOR_FAULT', class: 'CRITICAL', overridableBy: 'OWNER', maxOverrideMin: 15 },
-  { alertType: 'MOTOR_LINK_DOWN', class: 'WARNING', overridableBy: 'OWNER', maxOverrideMin: 60 },
-  { alertType: 'NETWORK_FAILOVER', class: 'INFO', overridableBy: 'OWNER', maxOverrideMin: 60 },
-  { alertType: 'BUFFER_80_PERCENT', class: 'WARNING', overridableBy: 'OWNER', maxOverrideMin: 60 },
-  { alertType: 'TIME_NOT_SYNCED', class: 'INFO', overridableBy: 'OWNER', maxOverrideMin: 60 },
-  { alertType: 'CALIBRATION_DUE', class: 'INFO', overridableBy: 'OWNER', maxOverrideMin: 60 },
-  { alertType: 'PLANNED_TIME_ELAPSED', class: 'INFO', overridableBy: 'OWNER', maxOverrideMin: 60 },
-  { alertType: 'DEVICE_OFFLINE', class: 'WARNING', overridableBy: 'NONE', maxOverrideMin: 0 },
+export const DEFAULT_ALERT_CATALOG: Array<
+  Pick<AlertCatalog, 'alertType' | 'class' | 'overridableBy' | 'maxOverrideMin'>
+> = [
+  {
+    alertType: 'THRESHOLD_WARNING',
+    class: 'WARNING',
+    overridableBy: 'OWNER',
+    maxOverrideMin: 60,
+  },
+  {
+    alertType: 'THRESHOLD_CRITICAL',
+    class: 'CRITICAL',
+    overridableBy: 'OWNER',
+    maxOverrideMin: 15,
+  },
+  {
+    alertType: 'PT100_FAULT',
+    class: 'CRITICAL',
+    overridableBy: 'OWNER',
+    maxOverrideMin: 15,
+  },
+  {
+    alertType: 'MOTOR_FAULT',
+    class: 'CRITICAL',
+    overridableBy: 'OWNER',
+    maxOverrideMin: 15,
+  },
+  {
+    alertType: 'MOTOR_LINK_DOWN',
+    class: 'WARNING',
+    overridableBy: 'OWNER',
+    maxOverrideMin: 60,
+  },
+  {
+    alertType: 'NETWORK_FAILOVER',
+    class: 'INFO',
+    overridableBy: 'OWNER',
+    maxOverrideMin: 60,
+  },
+  {
+    alertType: 'BUFFER_80_PERCENT',
+    class: 'WARNING',
+    overridableBy: 'OWNER',
+    maxOverrideMin: 60,
+  },
+  {
+    alertType: 'TIME_NOT_SYNCED',
+    class: 'INFO',
+    overridableBy: 'OWNER',
+    maxOverrideMin: 60,
+  },
+  {
+    alertType: 'CALIBRATION_DUE',
+    class: 'INFO',
+    overridableBy: 'OWNER',
+    maxOverrideMin: 60,
+  },
+  {
+    alertType: 'PLANNED_TIME_ELAPSED',
+    class: 'INFO',
+    overridableBy: 'OWNER',
+    maxOverrideMin: 60,
+  },
+  {
+    alertType: 'DEVICE_OFFLINE',
+    class: 'WARNING',
+    overridableBy: 'NONE',
+    maxOverrideMin: 0,
+  },
 ];
 
 @Injectable()
@@ -26,7 +83,9 @@ export class AlertCatalogService {
 
   async list(): Promise<AlertCatalog[]> {
     const manager = currentManager();
-    const all = await manager.find(AlertCatalog, { order: { alertType: 'ASC', version: 'DESC' } });
+    const all = await manager.find(AlertCatalog, {
+      order: { alertType: 'ASC', version: 'DESC' },
+    });
     // latest version per alert_type
     const latest = new Map<string, AlertCatalog>();
     for (const row of all) {
@@ -62,7 +121,8 @@ export class AlertCatalogService {
       .where('c.alert_type = :alertType', { alertType })
       .orderBy('c.version', 'DESC')
       .getOne();
-    if (!row) throw new NotFoundException(`No alert catalog entry for ${alertType}`);
+    if (!row)
+      throw new NotFoundException(`No alert catalog entry for ${alertType}`);
     return row;
   }
 
@@ -70,7 +130,12 @@ export class AlertCatalogService {
   async update(
     actor: AuthenticatedUser,
     alertType: string,
-    patch: Partial<Pick<AlertCatalog, 'class' | 'overridableBy' | 'maxOverrideMin' | 'soundPattern'>>,
+    patch: Partial<
+      Pick<
+        AlertCatalog,
+        'class' | 'overridableBy' | 'maxOverrideMin' | 'soundPattern'
+      >
+    >,
     reason: string,
   ): Promise<AlertCatalog> {
     const manager = currentManager();

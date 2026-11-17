@@ -1,0 +1,113 @@
+{
+  "panel": {
+    "model": "DMG48320C035_03WN",
+    "grade": "commercial",
+    "width": 320,
+    "height": 480,
+    "rotation": 0,
+    "brightness_nit": 300,
+    "interface": "TTL/CMOS UART2, 8N1, 115200 typical",
+    "source": "https://www.dwin-global.com/3-5-inch-smart-lcm-dmg48320c035_03wcommercial-grade-product/"
+  },
+  "legacy_source": {
+    "width": 240,
+    "height": 320,
+    "project": "RMP_HMI/archive/legacy-240x320/DWprj.hmi"
+  },
+  "pages": [
+    {
+      "id": 0,
+      "name": "boot",
+      "background": "0.bmp"
+    },
+    {
+      "id": 1,
+      "name": "idle",
+      "background": "1.bmp"
+    },
+    {
+      "id": 2,
+      "name": "wifi_setup",
+      "background": "2.bmp"
+    },
+    {
+      "id": 3,
+      "name": "unbound",
+      "background": "3.bmp"
+    },
+    {
+      "id": 4,
+      "name": "assignment",
+      "background": "4.bmp"
+    },
+    {
+      "id": 5,
+      "name": "prestart",
+      "background": "5.bmp"
+    },
+    {
+      "id": 6,
+      "name": "running",
+      "background": "6.bmp"
+    },
+    {
+      "id": 7,
+      "name": "alarm",
+      "background": "7.bmp"
+    },
+    {
+      "id": 8,
+      "name": "completed",
+      "background": "8.bmp"
+    },
+    {
+      "id": 9,
+      "name": "diagnostics",
+      "background": "9.bmp"
+    }
+  ],
+  "coordinate_transform": {
+    "x_scale": 1.3333333333333333,
+    "y_scale": 1.5,
+    "rounding": "nearest pixel",
+    "source": "RMP_HMI/archive/legacy-240x320/DGUS_Assets_v2/VP_map.csv"
+  },
+  "navigation": {
+    "buttons": {
+      "0": "MODE",
+      "1": "UP",
+      "2": "DOWN",
+      "3": "SELECT"
+    },
+    "edge_behavior": "stop; no wrap-around",
+    "repeat": {
+      "initial_delay_ms": 500,
+      "interval_ms": 150
+    },
+    "debounce_ms": 25,
+    "diagnostics": {
+      "rows": 9,
+      "visible_rows": 3,
+      "window_top_range": [
+        0,
+        6
+      ],
+      "focus_range": [
+        0,
+        2
+      ]
+    },
+    "vp_registers": {
+      "focus": "0x1320",
+      "diagnostic_window_top": "0x1321",
+      "diagnostic_focus": "0x1322",
+      "assignment_state": "0x1323"
+    }
+  },
+  "release_gate": [
+    "Replace the generated draft backgrounds with final 320x480 UI/UX artwork.",
+    "Bind the four navigation VPs and all scaled VP coordinates in DGUS Designer.",
+    "Configure Return Key Code touch areas only if the final hardware includes touch; physical tactile keys remain firmware-owned.",
+    "Export and bench-test a complete DWIN_SET package on the exact DMG48320C035_03WN panel before release."
+  ]
+}

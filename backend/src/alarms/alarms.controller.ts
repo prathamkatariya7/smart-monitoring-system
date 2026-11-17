@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { AlarmsService } from './alarms.service';
 import { AlertOverrideService } from './alert-override.service';
 import { AlertCatalogService } from './alert-catalog.service';
@@ -34,12 +42,26 @@ export class AlarmsController {
   }
 
   @Post('alarms/:id/override')
-  override(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: CreateOverrideDto) {
-    return this.overrides.create(user, id, dto.reasonCode, dto.reasonText, dto.durationMin);
+  override(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: CreateOverrideDto,
+  ) {
+    return this.overrides.create(
+      user,
+      id,
+      dto.reasonCode,
+      dto.reasonText,
+      dto.durationMin,
+    );
   }
 
   @Post('overrides/:id/revoke')
-  revoke(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ReasonRequiredDto) {
+  revoke(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: ReasonRequiredDto,
+  ) {
     return this.overrides.revoke(user, id, dto.reason);
   }
 
@@ -63,7 +85,12 @@ export class AlarmsController {
   updateCatalog(
     @CurrentUser() user: AuthenticatedUser,
     @Param('alertType') alertType: string,
-    @Body() body: ReasonRequiredDto & { class?: string; overridableBy?: string; maxOverrideMin?: number },
+    @Body()
+    body: ReasonRequiredDto & {
+      class?: string;
+      overridableBy?: string;
+      maxOverrideMin?: number;
+    },
   ) {
     return this.catalog.update(
       user,

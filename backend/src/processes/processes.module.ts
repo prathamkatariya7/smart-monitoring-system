@@ -10,4 +10,4 @@ import { MqttModule } from '../mqtt/mqtt.module';
   providers: [ProcessesService, ProcessesSchedulerService],
   exports: [ProcessesService],
 })
-export class ProcessesModule { }
+export class ProcessesModule {}

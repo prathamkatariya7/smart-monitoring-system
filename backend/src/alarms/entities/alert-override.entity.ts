@@ -64,7 +64,8 @@ export class AlertOverride {
   endedAt: Date | null;
 
   @Column({ name: 'end_cause', type: 'text', nullable: true })
-  endCause: 'CLEARED' | 'EXPIRED' | 'REVOKED' | 'ATTEMPT_ENDED' | 'ESCALATED' | null;
+  endCause:
+    'CLEARED' | 'EXPIRED' | 'REVOKED' | 'ATTEMPT_ENDED' | 'ESCALATED' | null;
 
   @Column({ name: 'seen_by', type: 'uuid', nullable: true })
   seenBy: string | null;

@@ -24,8 +24,13 @@ class Mqtt {
   bool begin(const MqttConfig &cfg);
   bool isConnected() const;
 
-  // state birth/heartbeat message (integration guide 5.1)
-  void publishState(const char *link, uint32_t boot);
+  // State birth/heartbeat message (integration guide 5.1). Motor identity is
+  // read-only discovery metadata and is repeated for recovery after restart.
+  void publishState(const char *link, uint32_t boot,
+                    const char *motorManufacturer = nullptr,
+                    const char *motorModel = nullptr,
+                    const char *motorProtocol = nullptr,
+                    const char *motorSerial = nullptr);
 
   // Columnar batch telemetry (integration guide 5.2). Sends to tele/batch or tele/backlog
   bool publishBatch(const RingStore::View &v, bool backlog, const char *link);

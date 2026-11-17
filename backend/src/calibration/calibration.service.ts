@@ -1,4 +1,9 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { currentManager } from '../common/db/request-context';
 import { newId } from '../common/util/id.util';
 import { CalibrationVersion } from './entities/calibration-version.entity';
@@ -21,21 +26,30 @@ export class CalibrationService {
   ) {}
 
   async listAll(): Promise<CalibrationVersion[]> {
-    return currentManager().find(CalibrationVersion, { order: { createdAt: 'DESC' } });
+    return currentManager().find(CalibrationVersion, {
+      order: { createdAt: 'DESC' },
+    });
   }
 
   async listForDevice(deviceId: string): Promise<CalibrationVersion[]> {
-    return currentManager().find(CalibrationVersion, { where: { deviceId }, order: { createdAt: 'DESC' } });
+    return currentManager().find(CalibrationVersion, {
+      where: { deviceId },
+      order: { createdAt: 'DESC' },
+    });
   }
 
   async get(id: string): Promise<CalibrationVersion> {
-    const row = await currentManager().findOne(CalibrationVersion, { where: { id } });
+    const row = await currentManager().findOne(CalibrationVersion, {
+      where: { id },
+    });
     if (!row) throw new NotFoundException('Calibration version not found');
     return row;
   }
 
   async dueList(withinDays = 30): Promise<CalibrationVersion[]> {
-    const cutoff = new Date(Date.now() + withinDays * 86_400_000).toISOString().slice(0, 10);
+    const cutoff = new Date(Date.now() + withinDays * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
     return currentManager()
       .getRepository(CalibrationVersion)
       .createQueryBuilder('c')
@@ -45,13 +59,23 @@ export class CalibrationService {
       .getMany();
   }
 
-  async create(actor: AuthenticatedUser, dto: CreateCalibrationDto): Promise<CalibrationVersion> {
+  async create(
+    actor: AuthenticatedUser,
+    dto: CreateCalibrationDto,
+  ): Promise<CalibrationVersion> {
     const manager = currentManager();
     const previous = await manager.findOne(CalibrationVersion, {
-      where: { deviceId: dto.deviceId, channel: dto.channel, status: 'APPLIED' },
+      where: {
+        deviceId: dto.deviceId,
+        channel: dto.channel,
+        status: 'APPLIED',
+      },
     });
 
-    const { a, b, errorSummary } = this.computeCoefficients(dto.method, dto.points);
+    const { a, b, errorSummary } = this.computeCoefficients(
+      dto.method,
+      dto.points,
+    );
 
     const row = manager.create(CalibrationVersion, {
       id: newId(),
@@ -91,7 +115,10 @@ export class CalibrationService {
     method: string,
     points: Array<{ reference: number; indicated: number }>,
   ): { a: number; b: number; errorSummary: Record<string, unknown> } {
-    const errors = points.map((p) => ({ ...p, error: p.indicated - p.reference }));
+    const errors = points.map((p) => ({
+      ...p,
+      error: p.indicated - p.reference,
+    }));
 
     if (method === 'single_point' || points.length === 1) {
       const correction = -errors[0].error;
@@ -112,10 +139,14 @@ export class CalibrationService {
     return { a, b, errorSummary: { errors } };
   }
 
-  async approve(actor: AuthenticatedUser, id: string): Promise<CalibrationVersion> {
+  async approve(
+    actor: AuthenticatedUser,
+    id: string,
+  ): Promise<CalibrationVersion> {
     const manager = currentManager();
     const row = await this.get(id);
-    if (row.status !== 'DRAFT') throw new ConflictException('Only a DRAFT calibration can be approved');
+    if (row.status !== 'DRAFT')
+      throw new ConflictException('Only a DRAFT calibration can be approved');
 
     const [client] = await manager.find(Client, { take: 1 });
     if (client?.policyPack === 'regulated' && row.enteredBy === actor.userId) {
@@ -124,7 +155,11 @@ export class CalibrationService {
       );
     }
 
-    await manager.update(CalibrationVersion, { id }, { status: 'APPROVED', approvedBy: actor.userId });
+    await manager.update(
+      CalibrationVersion,
+      { id },
+      { status: 'APPROVED', approvedBy: actor.userId },
+    );
     await this.audit.record({
       userId: actor.userId,
       action: 'CALIBRATION_APPROVED',
@@ -135,10 +170,16 @@ export class CalibrationService {
     return this.get(id);
   }
 
-  async apply(actor: AuthenticatedUser, id: string): Promise<CalibrationVersion> {
+  async apply(
+    actor: AuthenticatedUser,
+    id: string,
+  ): Promise<CalibrationVersion> {
     const manager = currentManager();
     const row = await this.get(id);
-    if (row.status !== 'APPROVED') throw new ConflictException('Only an APPROVED calibration can be applied');
+    if (row.status !== 'APPROVED')
+      throw new ConflictException(
+        'Only an APPROVED calibration can be applied',
+      );
 
     const coeff = (row.coefficientsJson as any) ?? {};
     await this.commandDispatcher.send(
@@ -156,9 +197,17 @@ export class CalibrationService {
     );
 
     if (row.previousVersionId) {
-      await manager.update(CalibrationVersion, { id: row.previousVersionId }, { status: 'SUPERSEDED' });
+      await manager.update(
+        CalibrationVersion,
+        { id: row.previousVersionId },
+        { status: 'SUPERSEDED' },
+      );
     }
-    await manager.update(CalibrationVersion, { id }, { status: 'APPLIED', validFrom: new Date() });
+    await manager.update(
+      CalibrationVersion,
+      { id },
+      { status: 'APPLIED', validFrom: new Date() },
+    );
     await this.cfgDesired.pushToDevice(row.deviceId);
 
     await this.audit.record({
@@ -171,22 +220,41 @@ export class CalibrationService {
     return this.get(id);
   }
 
-  async rollback(actor: AuthenticatedUser, id: string, reason: string): Promise<CalibrationVersion> {
+  async rollback(
+    actor: AuthenticatedUser,
+    id: string,
+    reason: string,
+  ): Promise<CalibrationVersion> {
     const manager = currentManager();
     const row = await this.get(id);
-    if (row.status !== 'APPLIED') throw new ConflictException('Only an APPLIED calibration can be rolled back');
-    if (!row.previousVersionId) throw new ConflictException('No previous calibration version to roll back to');
+    if (row.status !== 'APPLIED')
+      throw new ConflictException(
+        'Only an APPLIED calibration can be rolled back',
+      );
+    if (!row.previousVersionId)
+      throw new ConflictException(
+        'No previous calibration version to roll back to',
+      );
 
     const previous = await this.get(row.previousVersionId);
     await this.commandDispatcher.send(
       row.deviceId,
       'set_calibration',
-      { version: previous.id, channel: previous.channel, method: previous.method, coefficients: previous.coefficientsJson },
+      {
+        version: previous.id,
+        channel: previous.channel,
+        method: previous.method,
+        coefficients: previous.coefficientsJson,
+      },
       actor.userId,
     );
 
     await manager.update(CalibrationVersion, { id }, { status: 'ROLLED_BACK' });
-    await manager.update(CalibrationVersion, { id: previous.id }, { status: 'APPLIED' });
+    await manager.update(
+      CalibrationVersion,
+      { id: previous.id },
+      { status: 'APPLIED' },
+    );
 
     await this.audit.record({
       userId: actor.userId,

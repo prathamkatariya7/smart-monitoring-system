@@ -169,6 +169,18 @@ export function DevicesPage() {
     { title: 'Serial No', dataIndex: 'serialNo', key: 'serialNo' },
     { title: 'HW Rev', dataIndex: 'hwRevision', key: 'hwRevision' },
     {
+      title: 'Detected motor',
+      key: 'motor',
+      render: (_: unknown, device: Device) => device.motorManufacturer ? (
+        <span title={device.motorProtocol ?? undefined}>
+          <Tag color={device.motorManufacturer === 'IKA' ? 'purple' : 'geekblue'}>
+            {device.motorManufacturer}
+          </Tag>{' '}
+          {device.motorModel ?? 'Model unavailable'}
+        </span>
+      ) : <Tag color="default">Not detected</Tag>,
+    },
+    {
       title: 'Claim state',
       dataIndex: 'claimState',
       key: 'claimState',

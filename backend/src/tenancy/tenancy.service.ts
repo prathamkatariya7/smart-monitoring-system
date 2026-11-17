@@ -15,15 +15,25 @@ export class TenancyService {
   async getClient(): Promise<Client> {
     const manager = currentManager();
     const [client] = await manager.find(Client, { take: 1 });
-    if (!client) throw new NotFoundException('Installation has not been initialised (no client row)');
+    if (!client)
+      throw new NotFoundException(
+        'Installation has not been initialised (no client row)',
+      );
     return client;
   }
 
-  async updateTerminology(actor: AuthenticatedUser, terminology: Record<string, string>) {
+  async updateTerminology(
+    actor: AuthenticatedUser,
+    terminology: Record<string, string>,
+  ) {
     const manager = currentManager();
     const client = await this.getClient();
     const previous = client.terminologyJson;
-    await manager.update(Client, { id: client.id }, { terminologyJson: terminology });
+    await manager.update(
+      Client,
+      { id: client.id },
+      { terminologyJson: terminology },
+    );
     await this.audit.record({
       userId: actor.userId,
       action: 'TERMINOLOGY_UPDATED',
@@ -35,10 +45,18 @@ export class TenancyService {
     return this.getClient();
   }
 
-  async updatePolicyPack(actor: AuthenticatedUser, policyPack: string, reason: string) {
+  async updatePolicyPack(
+    actor: AuthenticatedUser,
+    policyPack: string,
+    reason: string,
+  ) {
     const manager = currentManager();
     const client = await this.getClient();
-    await manager.update(Client, { id: client.id }, { policyPack: policyPack as Client['policyPack'] });
+    await manager.update(
+      Client,
+      { id: client.id },
+      { policyPack: policyPack as Client['policyPack'] },
+    );
     await this.audit.record({
       userId: actor.userId,
       action: 'POLICY_PACK_CHANGED',
@@ -55,7 +73,12 @@ export class TenancyService {
     return currentManager().find(FeatureSwitch);
   }
 
-  async setFeatureSwitch(actor: AuthenticatedUser, key: string, value: boolean, reason: string) {
+  async setFeatureSwitch(
+    actor: AuthenticatedUser,
+    key: string,
+    value: boolean,
+    reason: string,
+  ) {
     const manager = currentManager();
     const existing = await manager.findOne(FeatureSwitch, { where: { key } });
     await manager.save(FeatureSwitch, {
@@ -81,7 +104,11 @@ export class TenancyService {
     return currentManager().find(Site);
   }
 
-  async createSite(actor: AuthenticatedUser, name: string, timeZone?: string): Promise<Site> {
+  async createSite(
+    actor: AuthenticatedUser,
+    name: string,
+    timeZone?: string,
+  ): Promise<Site> {
     const manager = currentManager();
     const client = await this.getClient();
     const site = manager.create(Site, {

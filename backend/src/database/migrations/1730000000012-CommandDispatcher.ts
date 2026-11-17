@@ -24,7 +24,9 @@ export class CommandDispatcher1730000000012 implements MigrationInterface {
         acked_at        timestamptz
       );
     `);
-    await queryRunner.query(`CREATE INDEX device_command_device_idx ON device_command (device_id, created_at DESC);`);
+    await queryRunner.query(
+      `CREATE INDEX device_command_device_idx ON device_command (device_id, created_at DESC);`,
+    );
     await queryRunner.query(`
       CREATE INDEX device_command_pending_idx ON device_command (created_at) WHERE (status = 'PENDING');
     `);

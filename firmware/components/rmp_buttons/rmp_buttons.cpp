@@ -27,14 +27,19 @@ void Buttons::poll() {
   for (int i = 0; i < 4; i++) {
     bool raw = gpio_get_level(kPins[i]) == 0;  // active-low
     if (raw != s_[i].raw) { s_[i].raw = raw; s_[i].t = now; }
-    if (now - s_[i].t < 25 || raw == s_[i].stable) {
+    if (now - s_[i].t < 25) {
+      if (s_[i].stable) hold(i, now);
+      continue;
+    }
+    if (raw == s_[i].stable) {
       if (s_[i].stable) hold(i, now);
       continue;
     }
     s_[i].stable = raw;
     if (raw) {
       s_[i].down = now;
-      s_[i].sent_long = s_[i].sent_hold = false;
+      s_[i].sent_long = s_[i].sent_hold = s_[i].sent_repeat = false;
+      s_[i].next_repeat = now + 500;
     } else if (!s_[i].sent_long && !s_[i].sent_hold && now - s_[i].down < 600) {
       push(i, BE_SHORT);
     }
@@ -47,10 +52,25 @@ bool Buttons::get(BtnMsg &m) {
   return true;
 }
 
-void Buttons::push(int i, BtnEvt e) { q_[wr_++ & 7] = {(uint8_t)i, e}; }
+void Buttons::push(int i, BtnEvt e) {
+  // Repeated navigation events are best-effort. Never discard a SELECT/MODE
+  // edge or a safety hold because a stuck key filled the small queue.
+  if ((uint8_t)(wr_ - rd_) >= 8) {
+    if (e == BE_REPEAT) return;
+    ++rd_;
+  }
+  q_[wr_++ & 7] = {(uint8_t)i, e};
+}
 
 void Buttons::hold(int i, uint32_t now) {
   uint32_t d = now - s_[i].down;
+  if ((i == 1 || i == 2) && d >= 500) {
+    if (!s_[i].sent_repeat || now >= s_[i].next_repeat) {
+      push(i, BE_REPEAT);
+      s_[i].sent_repeat = true;
+      s_[i].next_repeat = now + 150;
+    }
+  }
   if (!s_[i].sent_long && d >= 1500) { s_[i].sent_long = true; push(i, BE_LONG); }
   if (!s_[i].sent_hold && d >= 3000) { s_[i].sent_hold = true; push(i, BE_HOLD3); }
 }

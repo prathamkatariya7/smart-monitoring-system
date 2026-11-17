@@ -66,10 +66,14 @@ export class AuthService {
         failedCount >= MAX_FAILED_LOGINS
           ? new Date(Date.now() + LOCKOUT_MINUTES * 60_000)
           : null;
-      await manager.update(AppUser, { id: user.id }, {
-        failedLoginCount: failedCount,
-        lockedUntil,
-      });
+      await manager.update(
+        AppUser,
+        { id: user.id },
+        {
+          failedLoginCount: failedCount,
+          lockedUntil,
+        },
+      );
       return fail(lockedUntil ? 'bad password, now locked' : 'bad password');
     }
 
@@ -79,20 +83,14 @@ export class AuthService {
       }
     }
 
-    await manager.update(AppUser, { id: user.id }, {
-      failedLoginCount: 0,
-      lockedUntil: null,
-    });
-
-    const roleRows = await manager.find(UserRole, { where: { userId: user.id } });
-    const roles = roleRows.length
-      ? await manager
-          .getRepository(Role)
-          .createQueryBuilder('r')
-          .where('r.id IN (:...ids)', { ids: roleRows.map((r) => r.roleId) })
-          .getMany()
-      : [];
-    const scopeRows = await manager.find(UserLabScope, { where: { userId: user.id } });
+    await manager.update(
+      AppUser,
+      { id: user.id },
+      {
+        failedLoginCount: 0,
+        lockedUntil: null,
+      },
+    );
 
     await this.db.runAsAdmin(async () => {
       await this.audit.record({
@@ -145,8 +143,14 @@ export class AuthService {
   /** Generates a TOTP secret + enrolment URI; the user confirms with a code to flip mfaEnabled on. */
   async beginMfaEnrolment(userId: string) {
     const secret = authenticator.generateSecret();
-    await this.dataSource.manager.update(AppUser, { id: userId }, { mfaSecret: secret });
-    const user = await this.dataSource.manager.findOneOrFail(AppUser, { where: { id: userId } });
+    await this.dataSource.manager.update(
+      AppUser,
+      { id: userId },
+      { mfaSecret: secret },
+    );
+    const user = await this.dataSource.manager.findOneOrFail(AppUser, {
+      where: { id: userId },
+    });
     const uri = authenticator.keyuri(
       user.username,
       this.config.get<string>('auth.mfaIssuer') ?? 'RMP',
@@ -156,11 +160,17 @@ export class AuthService {
   }
 
   async confirmMfaEnrolment(userId: string, code: string) {
-    const user = await this.dataSource.manager.findOneOrFail(AppUser, { where: { id: userId } });
+    const user = await this.dataSource.manager.findOneOrFail(AppUser, {
+      where: { id: userId },
+    });
     if (!user.mfaSecret || !authenticator.check(code, user.mfaSecret)) {
       throw new BadRequestException('Invalid MFA code');
     }
-    await this.dataSource.manager.update(AppUser, { id: userId }, { mfaEnabled: true });
+    await this.dataSource.manager.update(
+      AppUser,
+      { id: userId },
+      { mfaEnabled: true },
+    );
   }
 
   static async hashPassword(password: string): Promise<string> {
@@ -178,7 +188,11 @@ export class AuthService {
     const userRoles = await manager.find(UserRole);
     const roleIds = [...new Set(userRoles.map((r) => r.roleId))];
     const roles = roleIds.length
-      ? await manager.getRepository(Role).createQueryBuilder('r').where('r.id IN (:...ids)', { ids: roleIds }).getMany()
+      ? await manager
+          .getRepository(Role)
+          .createQueryBuilder('r')
+          .where('r.id IN (:...ids)', { ids: roleIds })
+          .getMany()
       : [];
     const roleById = new Map(roles.map((r) => [r.id, r.code]));
     const rolesByUser = new Map<string, string[]>();
@@ -190,7 +204,9 @@ export class AuthService {
     }
 
     const scopeRows = await manager.find(UserLabScope);
-    const labIdByUser = new Map(scopeRows.map((s) => [s.userId, s.laboratoryId]));
+    const labIdByUser = new Map(
+      scopeRows.map((s) => [s.userId, s.laboratoryId]),
+    );
     const labIds = [...new Set(scopeRows.map((s) => s.laboratoryId))];
     // `laboratory` carries an RLS policy (unlike app_user/role/user_lab_scope),
     // so this lookup must run inside an admin-scoped context or Postgres
@@ -198,7 +214,11 @@ export class AuthService {
     // laboratoryName kept coming back null despite a correct laboratoryId.
     const labs = labIds.length
       ? await this.db.runAsAdmin((m) =>
-          m.getRepository(Laboratory).createQueryBuilder('l').where('l.id IN (:...ids)', { ids: labIds }).getMany(),
+          m
+            .getRepository(Laboratory)
+            .createQueryBuilder('l')
+            .where('l.id IN (:...ids)', { ids: labIds })
+            .getMany(),
         )
       : [];
     const labNameById = new Map(labs.map((l) => [l.id, l.name]));
@@ -212,9 +232,13 @@ export class AuthService {
         username: u.username,
         roles: rolesByUser.get(u.id) ?? [],
         laboratoryId,
-        laboratoryName: laboratoryId ? labNameById.get(laboratoryId) ?? null : null,
+        laboratoryName: laboratoryId
+          ? (labNameById.get(laboratoryId) ?? null)
+          : null,
         reportsToUserId: u.reportsToUserId,
-        reportsToName: u.reportsToUserId ? nameByUserId.get(u.reportsToUserId) ?? null : null,
+        reportsToName: u.reportsToUserId
+          ? (nameByUserId.get(u.reportsToUserId) ?? null)
+          : null,
       };
     });
   }
@@ -248,13 +272,22 @@ export class AuthService {
       reportsToUserId?: string;
     },
   ) {
-    if (input.roles.includes('BOROSIL_ADMIN') && !caller.roles.includes('BOROSIL_ADMIN')) {
-      throw new ForbiddenException('Only a Borosil Admin may grant the Borosil Admin role');
+    if (
+      input.roles.includes('BOROSIL_ADMIN') &&
+      !caller.roles.includes('BOROSIL_ADMIN')
+    ) {
+      throw new ForbiddenException(
+        'Only a Borosil Admin may grant the Borosil Admin role',
+      );
     }
     const manager = this.dataSource.manager;
-    const existing = await manager.findOne(AppUser, { where: { username: input.username } });
+    const existing = await manager.findOne(AppUser, {
+      where: { username: input.username },
+    });
     if (existing) {
-      throw new ConflictException(`Username "${input.username}" is already taken`);
+      throw new ConflictException(
+        `Username "${input.username}" is already taken`,
+      );
     }
     const roleRows = await manager
       .getRepository(Role)
@@ -262,13 +295,18 @@ export class AuthService {
       .where('r.code IN (:...codes)', { codes: input.roles })
       .getMany();
     if (roleRows.length !== input.roles.length) {
-      throw new BadRequestException('One or more role codes are not recognised');
+      throw new BadRequestException(
+        'One or more role codes are not recognised',
+      );
     }
 
-    const needsLab = input.roles.includes('LAB_INCHARGE') || input.roles.includes('ANALYST');
+    const needsLab =
+      input.roles.includes('LAB_INCHARGE') || input.roles.includes('ANALYST');
     const needsReportsTo = input.roles.includes('ANALYST');
     if (needsLab && !input.laboratoryId) {
-      throw new BadRequestException('laboratoryId is required for LAB_INCHARGE and ANALYST users');
+      throw new BadRequestException(
+        'laboratoryId is required for LAB_INCHARGE and ANALYST users',
+      );
     }
     if (input.laboratoryId) {
       // Same RLS caveat as listUsers() above -- laboratory has a policy, the
@@ -277,14 +315,21 @@ export class AuthService {
         m.findOne(Laboratory, { where: { id: input.laboratoryId } }),
       );
       if (!lab) {
-        throw new BadRequestException('laboratoryId does not refer to an existing laboratory');
+        throw new BadRequestException(
+          'laboratoryId does not refer to an existing laboratory',
+        );
       }
     }
     if (needsReportsTo) {
       if (!input.reportsToUserId) {
-        throw new BadRequestException('reportsToUserId is required for ANALYST users');
+        throw new BadRequestException(
+          'reportsToUserId is required for ANALYST users',
+        );
       }
-      await this.assertIsLabIncharge(input.reportsToUserId, input.laboratoryId!);
+      await this.assertIsLabIncharge(
+        input.reportsToUserId,
+        input.laboratoryId!,
+      );
     }
 
     const user = manager.create(AppUser, {
@@ -298,7 +343,9 @@ export class AuthService {
     });
     await manager.save(user);
     await manager.save(
-      roleRows.map((r) => manager.create(UserRole, { userId: user.id, roleId: r.id })),
+      roleRows.map((r) =>
+        manager.create(UserRole, { userId: user.id, roleId: r.id }),
+      ),
     );
     if (input.laboratoryId) {
       await manager.save(
@@ -351,7 +398,9 @@ export class AuthService {
         ).map((r) => r.code)
       : [];
     if (!roleCodes.includes('LAB_INCHARGE')) {
-      throw new BadRequestException('reportsToUserId must be a user with the LAB_INCHARGE role');
+      throw new BadRequestException(
+        'reportsToUserId must be a user with the LAB_INCHARGE role',
+      );
     }
     const scope = await manager.findOne(UserLabScope, { where: { userId } });
     if (!scope || scope.laboratoryId !== laboratoryId) {
@@ -368,18 +417,30 @@ export class AuthService {
    * adding another, since a user has exactly one home lab (see that
    * entity's doc comment).
    */
-  async reassignLab(targetUserId: string, laboratoryId: string, reportsToUserId?: string) {
+  async reassignLab(
+    targetUserId: string,
+    laboratoryId: string,
+    reportsToUserId?: string,
+  ) {
     const manager = this.dataSource.manager;
-    const user = await manager.findOne(AppUser, { where: { id: targetUserId } });
+    const user = await manager.findOne(AppUser, {
+      where: { id: targetUserId },
+    });
     if (!user) {
       throw new BadRequestException('User not found');
     }
-    const lab = await this.db.runAsAdmin((m) => m.findOne(Laboratory, { where: { id: laboratoryId } }));
+    const lab = await this.db.runAsAdmin((m) =>
+      m.findOne(Laboratory, { where: { id: laboratoryId } }),
+    );
     if (!lab) {
-      throw new BadRequestException('laboratoryId does not refer to an existing laboratory');
+      throw new BadRequestException(
+        'laboratoryId does not refer to an existing laboratory',
+      );
     }
 
-    const roleRows = await manager.find(UserRole, { where: { userId: targetUserId } });
+    const roleRows = await manager.find(UserRole, {
+      where: { userId: targetUserId },
+    });
     const roleCodes = roleRows.length
       ? (
           await manager
@@ -391,14 +452,22 @@ export class AuthService {
       : [];
     if (roleCodes.includes('ANALYST')) {
       if (!reportsToUserId) {
-        throw new BadRequestException('reportsToUserId is required when reassigning an ANALYST');
+        throw new BadRequestException(
+          'reportsToUserId is required when reassigning an ANALYST',
+        );
       }
       await this.assertIsLabIncharge(reportsToUserId, laboratoryId);
     }
 
-    const existingScope = await manager.findOne(UserLabScope, { where: { userId: targetUserId } });
+    const existingScope = await manager.findOne(UserLabScope, {
+      where: { userId: targetUserId },
+    });
     if (existingScope) {
-      await manager.update(UserLabScope, { userId: targetUserId }, { laboratoryId });
+      await manager.update(
+        UserLabScope,
+        { userId: targetUserId },
+        { laboratoryId },
+      );
     } else {
       await manager.save(
         manager.create(UserLabScope, {
@@ -412,7 +481,11 @@ export class AuthService {
     await manager.update(
       AppUser,
       { id: targetUserId },
-      { reportsToUserId: roleCodes.includes('ANALYST') ? reportsToUserId! : user.reportsToUserId },
+      {
+        reportsToUserId: roleCodes.includes('ANALYST')
+          ? reportsToUserId!
+          : user.reportsToUserId,
+      },
     );
 
     return { ok: true };
@@ -427,31 +500,50 @@ export class AuthService {
    * reset by another `BOROSIL_ADMIN` caller -- a client Admin can reset
    * passwords for their own users, but never for Borosil's own account.
    */
-  async resetPassword(caller: AuthenticatedUser, targetUserId: string, newPassword: string) {
+  async resetPassword(
+    caller: AuthenticatedUser,
+    targetUserId: string,
+    newPassword: string,
+  ) {
     const manager = this.dataSource.manager;
-    const target = await manager.findOne(AppUser, { where: { id: targetUserId } });
+    const target = await manager.findOne(AppUser, {
+      where: { id: targetUserId },
+    });
     if (!target) {
       throw new BadRequestException('User not found');
     }
-    const targetRoleRows = await manager.find(UserRole, { where: { userId: targetUserId } });
+    const targetRoleRows = await manager.find(UserRole, {
+      where: { userId: targetUserId },
+    });
     const targetRoleCodes = targetRoleRows.length
       ? (
           await manager
             .getRepository(Role)
             .createQueryBuilder('r')
-            .where('r.id IN (:...ids)', { ids: targetRoleRows.map((r) => r.roleId) })
+            .where('r.id IN (:...ids)', {
+              ids: targetRoleRows.map((r) => r.roleId),
+            })
             .getMany()
         ).map((r) => r.code)
       : [];
-    if (targetRoleCodes.includes('BOROSIL_ADMIN') && !caller.roles.includes('BOROSIL_ADMIN')) {
-      throw new ForbiddenException('Only a Borosil Admin may reset a Borosil Admin account\'s password');
+    if (
+      targetRoleCodes.includes('BOROSIL_ADMIN') &&
+      !caller.roles.includes('BOROSIL_ADMIN')
+    ) {
+      throw new ForbiddenException(
+        "Only a Borosil Admin may reset a Borosil Admin account's password",
+      );
     }
 
-    await manager.update(AppUser, { id: targetUserId }, {
-      passwordHash: await AuthService.hashPassword(newPassword),
-      failedLoginCount: 0,
-      lockedUntil: null,
-    });
+    await manager.update(
+      AppUser,
+      { id: targetUserId },
+      {
+        passwordHash: await AuthService.hashPassword(newPassword),
+        failedLoginCount: 0,
+        lockedUntil: null,
+      },
+    );
 
     await this.db.runAsAdmin(async () => {
       await this.audit.record({

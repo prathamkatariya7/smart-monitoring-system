@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { CalibrationService } from './calibration.service';
 import { CreateCalibrationDto } from './dto/create-calibration.dto';
 import { ReasonRequiredDto } from '../common/dto/reason-required.dto';
@@ -33,7 +41,10 @@ export class CalibrationController {
 
   @Roles('ADMIN')
   @Post()
-  create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateCalibrationDto) {
+  create(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateCalibrationDto,
+  ) {
     return this.calibration.create(user, dto);
   }
 
@@ -51,7 +62,11 @@ export class CalibrationController {
 
   @Roles('ADMIN')
   @Post(':id/rollback')
-  rollback(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ReasonRequiredDto) {
+  rollback(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: ReasonRequiredDto,
+  ) {
     return this.calibration.rollback(user, id, dto.reason);
   }
 }

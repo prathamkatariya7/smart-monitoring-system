@@ -27,8 +27,10 @@ import { tenancyApi } from '@/api/tenancy';
 import { processesApi } from '@/api/processes';
 import { useAuthStore } from '@/store/auth.store';
 import type { Equipment, Laboratory, Process } from '@/api/types';
+import { useNow } from '@/hooks/use-now';
 
 export function ReactorCard({ equipment }: { equipment: Equipment }) {
+  const now = useNow();
   const { data: live } = useQuery({
     queryKey: ['reactor-live', equipment.id],
     queryFn: () => reactorsApi.live(equipment.id),
@@ -40,7 +42,7 @@ export function ReactorCard({ equipment }: { equipment: Equipment }) {
     refetchInterval: 10000,
   });
   const activeAlarms = alarms?.filter((a) => a.state === 'ACTIVE_UNACK' || a.state === 'ACTIVE_ACK') ?? [];
-  const isOnline = equipment.online ?? (live?.ts ? Date.now() - new Date(live.ts).getTime() < 45000 : false);
+  const isOnline = equipment.online ?? (live?.ts ? now - new Date(live.ts).getTime() < 45_000 : false);
 
   return (
     <Link to={`/reactors/${equipment.id}`}>

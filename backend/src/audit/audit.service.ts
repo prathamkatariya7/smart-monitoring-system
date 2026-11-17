@@ -50,13 +50,23 @@ export class AuditService {
   }
 
   /** Part 13.1 verification job: recompute the chain (in SQL, same formula as the trigger) and find the first break. */
-  async verifyChain(): Promise<{ ok: boolean; brokenAtAuditId?: string; reason?: string }> {
+  async verifyChain(): Promise<{
+    ok: boolean;
+    brokenAtAuditId?: string;
+    reason?: string;
+  }> {
     const manager = currentManager();
-    const rows: Array<{ broken_audit_id: string | null; reason: string | null }> =
-      await manager.query(`SELECT * FROM verify_audit_chain();`);
+    const rows: Array<{
+      broken_audit_id: string | null;
+      reason: string | null;
+    }> = await manager.query(`SELECT * FROM verify_audit_chain();`);
     if (rows.length === 0 || rows[0].broken_audit_id === null) {
       return { ok: true };
     }
-    return { ok: false, brokenAtAuditId: rows[0].broken_audit_id, reason: rows[0].reason ?? undefined };
+    return {
+      ok: false,
+      brokenAtAuditId: rows[0].broken_audit_id,
+      reason: rows[0].reason ?? undefined,
+    };
   }
 }

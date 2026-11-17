@@ -37,10 +37,14 @@ export class DeviceState1730000000011 implements MigrationInterface {
         created_at  timestamptz NOT NULL DEFAULT now()
       );
     `);
-    await queryRunner.query(`CREATE INDEX device_event_device_ts_idx ON device_event (device_id, ts DESC);`);
+    await queryRunner.query(
+      `CREATE INDEX device_event_device_ts_idx ON device_event (device_id, ts DESC);`,
+    );
 
     // migration 010's GRANT ALL ON ALL TABLES ran before these tables existed.
-    await queryRunner.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON device_state, device_event TO rmp_app;`);
+    await queryRunner.query(
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON device_state, device_event TO rmp_app;`,
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

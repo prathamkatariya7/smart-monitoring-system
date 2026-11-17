@@ -336,8 +336,112 @@ static void onServerCfgDesired(const char *json_data, size_t len) {
   cJSON_Delete(root);
 }
 
-// Button Task: debounced Menu, Up, Down, Select handling (Specification
-// Section 5.2 & 5.3)
+// HMI navigation state. Focus is intentionally firmware-owned; DGUS only renders
+// the highlight and the visible diagnostics window from these registers.
+static volatile uint8_t g_hmi_focus = 0;
+static volatile uint8_t g_diag_window_top = 0;
+static volatile uint8_t g_diag_focus = 0;
+
+static void syncNavigationUi() {
+  uint16_t assignment_state = (g_screen == SCREEN_ASSIGNMENT) ? 1 : 0;
+  g_dwin.writeNavigationState(g_hmi_focus, g_diag_window_top, g_diag_focus,
+                              assignment_state);
+}
+
+static void resetNavigationForScreen(HmiScreen screen) {
+  g_hmi_focus = 0;
+  if (screen == SCREEN_DIAGNOSTICS) {
+    g_diag_window_top = 0;
+    g_diag_focus = 0;
+  }
+  syncNavigationUi();
+}
+
+static void showScreen(HmiScreen screen) {
+  g_screen = screen;
+  g_dwin.setPage((uint8_t)screen);
+  resetNavigationForScreen(screen);
+}
+
+static void returnFromDiagnostics() {
+  HmiScreen parent = s_prev_screen;
+  if (parent == SCREEN_DIAGNOSTICS || parent == SCREEN_BOOT) parent = SCREEN_IDLE;
+  showScreen(parent);
+}
+
+static void stepFocus(int direction) {
+  if (g_screen == SCREEN_DIAGNOSTICS) {
+    if (direction > 0) {
+      if (g_diag_focus < 2) {
+        ++g_diag_focus;
+      } else if (g_diag_window_top < 6) {
+        ++g_diag_window_top;
+      }
+    } else {
+      if (g_diag_focus > 0) {
+        --g_diag_focus;
+      } else if (g_diag_window_top > 0) {
+        --g_diag_window_top;
+      }
+    }
+    syncNavigationUi();
+    return;
+  }
+
+  // Standard menus use stop-at-edge behavior. There is deliberately no wrap:
+  // wrap-around is unsafe when the next action is a destructive process command.
+  if (g_screen == SCREEN_ASSIGNMENT || g_screen == SCREEN_PRESTART) {
+    if (direction > 0 && g_hmi_focus < 1) ++g_hmi_focus;
+    if (direction < 0 && g_hmi_focus > 0) --g_hmi_focus;
+    syncNavigationUi();
+  }
+}
+
+static void acceptAssignment(uint32_t now_ms, int64_t ts, bool synced) {
+  char detail[128];
+  snprintf(detail, sizeof(detail), "\"processId\":\"%s\",\"analyst\":\"%s\"",
+           g_process_id, g_analyst_name);
+  g_mqtt.publishEvent("ASSIGNMENT_ACCEPTED", g_boot, now_ms, ts, synced, detail);
+  g_screen = SCREEN_PRESTART;
+  g_hmi_focus = 0;
+  g_dwin.showPreStartPage(g_process_name, g_max_temp, g_max_rpm, g_max_temp_roc);
+  g_dwin.setPage(DWIN_PAGE_PRESTART);
+  syncNavigationUi();
+}
+
+static void rejectAssignment(uint32_t now_ms, int64_t ts, bool synced) {
+  char detail[128];
+  snprintf(detail, sizeof(detail), "\"processId\":\"%s\",\"analyst\":\"%s\"",
+           g_process_id, g_analyst_name);
+  g_mqtt.publishEvent("ASSIGNMENT_REJECTED", g_boot, now_ms, ts, synced, detail);
+  g_process_id[0] = '\0';
+  g_process_name[0] = '\0';
+  showScreen(SCREEN_IDLE);
+}
+
+static void startProcess(uint32_t now_ms, int64_t ts, bool synced) {
+  char detail[128];
+  snprintf(detail, sizeof(detail), "\"processId\":\"%s\",\"analyst\":\"%s\"",
+           g_process_id, g_analyst_name);
+  g_mqtt.publishEvent("ATTEMPT_STARTED", g_boot, now_ms, ts, synced, detail);
+  g_attempt_start_ms = (esp_timer_get_time() / 1000);
+  g_samples_logged = 0;
+  showScreen(SCREEN_RUNNING);
+}
+
+static void cancelProcess(uint32_t now_ms, int64_t ts, bool synced) {
+  char detail[128];
+  snprintf(detail, sizeof(detail), "\"processId\":\"%s\",\"analyst\":\"%s\"",
+           g_process_id, g_analyst_name);
+  g_mqtt.publishEvent("PROCESS_CANCELLED", g_boot, now_ms, ts, synced, detail);
+  g_process_id[0] = '\0';
+  g_process_name[0] = '\0';
+  showScreen(SCREEN_IDLE);
+}
+
+// Button Task: MODE=back/mode switch, UP/DOWN=focus/scroll, SELECT=confirm.
+// A long MODE hold opens diagnostics; active alarms and running processes cannot
+// be hidden by MODE because doing so would create an unsafe false-idle display.
 static void buttonTask(void *) {
   g_buttons.begin();
   for (;;) {
@@ -347,130 +451,46 @@ static void buttonTask(void *) {
       uint32_t now_ms = (uint32_t)(esp_timer_get_time() / 1000);
       int64_t ts = rmp::TimeSync::utcMs();
       bool synced = (g_time.state() == rmp::T_SYNCED);
+      const char *btn_name = (m.id == 0) ? "MODE" : (m.id == 1) ? "UP" : (m.id == 2) ? "DOWN" : "SELECT";
+      const char *evt_name = (m.e == rmp::BE_SHORT) ? "SHORT" :
+                             (m.e == rmp::BE_LONG) ? "LONG" :
+                             (m.e == rmp::BE_HOLD3) ? "HOLD3" : "REPEAT";
+      ESP_LOGI("rmp_btn", "Button Event: %s %s on screen %u focus=%u",
+               btn_name, evt_name, (unsigned)g_screen, (unsigned)g_hmi_focus);
 
-      const char *btn_name = (m.id == 0) ? "MENU" : (m.id == 1) ? "UP" : (m.id == 2) ? "DOWN" : "SELECT";
-      const char *evt_name = (m.e == rmp::BE_SHORT) ? "SHORT" : (m.e == rmp::BE_LONG) ? "LONG" : "HOLD3";
-      ESP_LOGI("rmp_btn", "Button Event: %s (id=%u) %s on screen %u", btn_name, (unsigned)m.id, evt_name, (unsigned)g_screen);
-      if (m.e == rmp::BE_SHORT) {
-        g_audio.beep(1046, 50); // C6 short confirmation click
-      }
+      if (m.e == rmp::BE_SHORT) g_audio.beep(1046, 50);
 
-      // Key 0: MENU button
-      if (m.id == 0) {
-        if ((g_screen == SCREEN_IDLE && m.e == rmp::BE_HOLD3) ||
-            ((g_screen == SCREEN_WIFI_SETUP || g_screen == SCREEN_UNBOUND) && (m.e == rmp::BE_SHORT || m.e == rmp::BE_HOLD3))) {
-          // MENU -> go to Page 9 (Diagnostics)
+      if (m.id == 0) {  // MODE
+        if (m.e == rmp::BE_HOLD3 && g_screen != SCREEN_ALARM && g_screen != SCREEN_RUNNING) {
           s_prev_screen = g_screen;
           g_screen = SCREEN_DIAGNOSTICS;
           g_dwin.setPage(DWIN_PAGE_DIAGNOSTICS);
-        } else if (g_screen == SCREEN_RUNNING && m.e == rmp::BE_HOLD3) {
-          // Page 6: MENU (Hold 3s) = Emergency Stop / Abort process
-          ESP_LOGW("rmp_btn", "Emergency stop / Abort triggered from Key 0 (HOLD 3s)!");
-          char detail[256];
-          snprintf(detail, sizeof(detail),
-                   "\"processId\":\"%s\",\"analyst\":\"%s\",\"reason\":\"Emergency Abort from device\"",
-                   g_process_id, g_analyst_name);
-          g_mqtt.publishEvent("PROCESS_ABORTED", g_boot, now_ms, ts, synced, detail);
-          g_process_id[0] = '\0';
-          g_process_name[0] = '\0';
-          g_screen = SCREEN_IDLE;
-          g_dwin.setPage(DWIN_PAGE_IDLE);
-        } else if (g_screen == SCREEN_ALARM &&
-                   (m.e == rmp::BE_SHORT || m.e == rmp::BE_LONG)) {
-          // Page 7: MENU silences the siren
-          g_alert_level = rmp::AlertLevel::kOff;
-          g_alarm_silenced = true;
-          g_dwin.writeValue(rmp::VP_MUTE_BUTTON, 1);
-        } else if (g_screen == SCREEN_DIAGNOSTICS && m.e == rmp::BE_SHORT) {
-          // Page 9: MENU (short) returns to monitoring
-          g_screen = s_prev_screen;
-          g_dwin.setPage((uint8_t)g_screen);
+          resetNavigationForScreen(SCREEN_DIAGNOSTICS);
+        } else if (m.e == rmp::BE_SHORT) {
+          if (g_screen == SCREEN_DIAGNOSTICS) {
+            returnFromDiagnostics();
+          } else if (g_screen == SCREEN_ASSIGNMENT || g_screen == SCREEN_PRESTART ||
+                     g_screen == SCREEN_COMPLETED) {
+            // MODE discards the local selection and never publishes a workflow event.
+            showScreen(SCREEN_IDLE);
+          } else if (g_screen == SCREEN_ALARM) {
+            ESP_LOGW("rmp_btn", "MODE ignored while critical alarm is active");
+          } else if (g_screen == SCREEN_RUNNING) {
+            ESP_LOGW("rmp_btn", "MODE ignored while process is RUNNING; use server abort workflow");
+          }
         }
-      }
-
-      // Key 1: UP button
-      else if (m.id == 1 && m.e == rmp::BE_SHORT) {
+      } else if ((m.id == 1 || m.id == 2) &&
+                 (m.e == rmp::BE_SHORT || m.e == rmp::BE_REPEAT)) {
+        stepFocus(m.id == 1 ? -1 : 1);
+      } else if (m.id == 3 && m.e == rmp::BE_SHORT) {  // SELECT
         if (g_screen == SCREEN_ASSIGNMENT) {
-          // Page 4: UP = Accept assignment -> Page 5
-          char detail[128];
-          snprintf(detail, sizeof(detail),
-                   "\"processId\":\"%s\",\"analyst\":\"%s\"", g_process_id,
-                   g_analyst_name);
-          g_mqtt.publishEvent("ASSIGNMENT_ACCEPTED", g_boot, now_ms, ts, synced,
-                              detail);
-          g_screen = SCREEN_PRESTART;
-          g_dwin.showPreStartPage(g_process_name, g_max_temp, g_max_rpm,
-                                  g_max_temp_roc);
-          g_dwin.setPage(DWIN_PAGE_PRESTART);
+          if (g_hmi_focus == 0) acceptAssignment(now_ms, ts, synced);
+          else rejectAssignment(now_ms, ts, synced);
         } else if (g_screen == SCREEN_PRESTART) {
-          // Page 5: UP = Start process -> Page 6
-          char detail[128];
-          snprintf(detail, sizeof(detail),
-                   "\"processId\":\"%s\",\"analyst\":\"%s\"", g_process_id,
-                   g_analyst_name);
-          g_mqtt.publishEvent("ATTEMPT_STARTED", g_boot, now_ms, ts, synced,
-                              detail);
-          g_attempt_start_ms = (esp_timer_get_time() / 1000);
-          g_samples_logged = 0;
-          g_screen = SCREEN_RUNNING;
-          g_dwin.setPage(DWIN_PAGE_RUNNING);
-        } else if (g_screen == SCREEN_COMPLETED) {
-          // Page 8: UP = release vessel to idle -> Page 1
-          g_screen = SCREEN_IDLE;
-          g_dwin.setPage(DWIN_PAGE_IDLE);
-        }
-      }
-
-      // Key 2: DOWN button
-      else if (m.id == 2 && (m.e == rmp::BE_SHORT || m.e == rmp::BE_LONG)) {
-        if (g_screen == SCREEN_ASSIGNMENT) {
-          // Page 4: DOWN = Reject assignment -> Page 1
-          char detail[128];
-          snprintf(detail, sizeof(detail),
-                   "\"processId\":\"%s\",\"analyst\":\"%s\"", g_process_id,
-                   g_analyst_name);
-          g_mqtt.publishEvent("ASSIGNMENT_REJECTED", g_boot, now_ms, ts, synced,
-                              detail);
-          g_process_id[0] = '\0';
-          g_process_name[0] = '\0';
-          g_screen = SCREEN_IDLE;
-          g_dwin.setPage(DWIN_PAGE_IDLE);
-        } else if (g_screen == SCREEN_PRESTART) {
-          // Page 5: DOWN = Cancel -> Page 1
-          char detail[128];
-          snprintf(detail, sizeof(detail),
-                   "\"processId\":\"%s\",\"analyst\":\"%s\"", g_process_id,
-                   g_analyst_name);
-          g_mqtt.publishEvent("PROCESS_CANCELLED", g_boot, now_ms, ts, synced,
-                              detail);
-          g_process_id[0] = '\0';
-          g_process_name[0] = '\0';
-          g_screen = SCREEN_IDLE;
-          g_dwin.setPage(DWIN_PAGE_IDLE);
+          if (g_hmi_focus == 0) startProcess(now_ms, ts, synced);
+          else cancelProcess(now_ms, ts, synced);
         } else if (g_screen == SCREEN_RUNNING) {
-          // Page 6: DOWN = Abort process -> Page 1
-          ESP_LOGW("rmp_btn", "Process Abort triggered from Key 2 (DOWN)!");
-          char detail[256];
-          snprintf(detail, sizeof(detail),
-                   "\"processId\":\"%s\",\"analyst\":\"%s\",\"reason\":\"Aborted by user on device\"",
-                   g_process_id, g_analyst_name);
-          g_mqtt.publishEvent("PROCESS_ABORTED", g_boot, now_ms, ts, synced,
-                              detail);
-          g_process_id[0] = '\0';
-          g_process_name[0] = '\0';
-          g_screen = SCREEN_IDLE;
-          g_dwin.setPage(DWIN_PAGE_IDLE);
-        } else if (g_screen == SCREEN_DIAGNOSTICS) {
-          // Page 9: DOWN returns to monitoring
-          g_screen = s_prev_screen;
-          g_dwin.setPage((uint8_t)g_screen);
-        }
-      }
-
-      // Key 3: SELECT button
-      else if (m.id == 3 && m.e == rmp::BE_SHORT) {
-        if (g_screen == SCREEN_RUNNING) {
-          // Page 6: SELECT (short press) mutes alerts, set 0x1307 = 1
+          // SELECT is the only local acknowledgement action while running.
           g_alarm_silenced = true;
           g_dwin.writeValue(rmp::VP_RUN_FOOTER, 1);
           if (g_alert_level != rmp::AlertLevel::kOff) {
@@ -479,15 +499,16 @@ static void buttonTask(void *) {
                                 "\"parameter\":\"temperature\"");
           }
         } else if (g_screen == SCREEN_ALARM) {
-          // Page 7: SELECT silences the siren, set 0x1309 = 1
           g_alert_level = rmp::AlertLevel::kOff;
           g_alarm_silenced = true;
           g_dwin.writeValue(rmp::VP_MUTE_BUTTON, 1);
         } else if (g_screen == SCREEN_COMPLETED) {
-          // Page 8: SELECT releases vessel to idle -> Page 1
-          g_screen = SCREEN_IDLE;
-          g_dwin.setPage(DWIN_PAGE_IDLE);
+          showScreen(SCREEN_IDLE);
+        } else if (g_screen == SCREEN_DIAGNOSTICS) {
+          ESP_LOGI("rmp_btn", "Diagnostics detail acknowledged for row %u",
+                   (unsigned)(g_diag_window_top + g_diag_focus + 1));
         }
+        syncNavigationUi();
       }
     }
     vTaskDelay(pdMS_TO_TICKS(5));
@@ -521,9 +542,27 @@ static void samplerTask(void *) {
     float t_eval = isfinite(t_cal) ? t_cal : t_raw;
     g_current_temp = t_eval;
 
-    float rpm = 0.0f, tq = 0.0f;
-    bool motor_ok = false;
+    rmp::MotorData motor_data{};
+    bool motor_ok = g_motor.poll(motor_data);
+    float rpm = motor_ok ? motor_data.rpm : 0.0f;
+    float tq = motor_ok ? motor_data.tq_ncm : 0.0f;
     float rate = 0.0f;
+
+    if (g_motor.identityChanged() && g_mqtt.isConnected()) {
+      const auto &mi = g_motor.identity();
+      char detail[256];
+      char serial_json[64] = "null";
+      if (mi.serial[0])
+        snprintf(serial_json, sizeof(serial_json), "\"%s\"", mi.serial);
+      snprintf(detail, sizeof(detail),
+               "{\"manufacturer\":\"%s\",\"model\":\"%s\",\"protocol\":\"%s\",\"serial\":%s}",
+               mi.manufacturer, mi.model, rmp::motorProtocolName(mi.protocol),
+               serial_json);
+      g_mqtt.publishEvent("MOTOR_IDENTIFIED", g_boot, (uint32_t)now_ms,
+                          rmp::TimeSync::utcMs(), g_time.state() == rmp::T_SYNCED,
+                          detail);
+      g_motor.clearIdentityChanged();
+    }
 
     // Local Rate-of-Change (RoC) & Safety Alarm Check
     if (rf == 0 && isfinite(t_eval)) {
@@ -603,6 +642,9 @@ static void samplerTask(void *) {
 
     // Mirror to DWIN Display per page (Section 8)
     if (!g_dwin_paused) {
+      // Mirror navigation state before page values so the DGUS highlight and
+      // firmware cursor remain synchronized after server-driven page changes.
+      syncNavigationUi();
       if (g_screen == SCREEN_RUNNING) {
       char durationStr[16];
       int64_t dur_ms = now_ms - g_attempt_start_ms;
@@ -687,8 +729,9 @@ static void samplerTask(void *) {
     rec.t_raw = (rf == 0 ? t_raw : NAN);
     rec.rpm = (uint16_t)rpm;
     rec.tq_x10 = (int16_t)lroundf(tq * 10.0f);
-    rec.q = (rf == 0 ? 0 : 2); // 0=G, 2=B
-    rec.flt = rf;
+    rec.q = (rf == 0 ? 0 : 2) | ((motor_ok ? 0 : 2) << 2) |
+            ((motor_ok ? 0 : 2) << 4);
+    rec.flt = motor_ok ? motor_data.flt : 0;
     rec.flags = 0;
     rec.boot = (uint16_t)g_boot;
 
@@ -784,7 +827,12 @@ static void netMqttTask(void *) {
     }
 
     if (g_mqtt.isConnected() && !g_decommissioned) {
-      g_mqtt.publishState("wifi", g_boot);
+      const auto &mi = g_motor.identity();
+      g_mqtt.publishState(
+          "wifi", g_boot, mi.detected ? mi.manufacturer : nullptr,
+          mi.detected ? mi.model : nullptr,
+          mi.detected ? rmp::motorProtocolName(mi.protocol) : nullptr,
+          mi.detected ? mi.serial : nullptr);
 
       // Drain live batches from ring buffer
       rmp::RingStore::View view;
@@ -1129,7 +1177,9 @@ extern "C" void app_main() {
   g_dwin.showBootPage(75, nullptr);
   vTaskDelay(pdMS_TO_TICKS(150));
 
-  // Step 4: Motor & Communication (100%)
+  // Step 4: Motor & Communication (100%). Discovery uses only read-only
+  // commands; it never starts, stops, resets or changes a motor setpoint.
+  g_motor.begin();
   g_dwin.showBootPage(100, nullptr);
   vTaskDelay(pdMS_TO_TICKS(300)); // Brief pause so user sees 100% complete
 

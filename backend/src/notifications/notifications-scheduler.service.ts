@@ -20,13 +20,20 @@ export class NotificationsSchedulerService {
   @Cron(CronExpression.EVERY_MINUTE)
   async run(): Promise<void> {
     await this.db.runAsAdmin(async () => {
-      await this.notifications.escalateUnseen(this.escalateAfterMinutes, async () => {
-        const manager = currentManager();
-        const admin = await manager.findOne(Role, { where: { code: 'ADMIN' } });
-        if (!admin) return null;
-        const adminUserRole = await manager.findOne(UserRole, { where: { roleId: admin.id } });
-        return adminUserRole?.userId ?? null;
-      });
+      await this.notifications.escalateUnseen(
+        this.escalateAfterMinutes,
+        async () => {
+          const manager = currentManager();
+          const admin = await manager.findOne(Role, {
+            where: { code: 'ADMIN' },
+          });
+          if (!admin) return null;
+          const adminUserRole = await manager.findOne(UserRole, {
+            where: { roleId: admin.id },
+          });
+          return adminUserRole?.userId ?? null;
+        },
+      );
     });
   }
 }

@@ -33,12 +33,19 @@ async function seed() {
       id: newId(),
       name: process.env.INSTALL_ORG_NAME ?? 'Default Organisation',
       edition: (process.env.INSTALL_EDITION as Client['edition']) ?? 'solo',
-      policyPack: (process.env.INSTALL_POLICY_PACK as Client['policyPack']) ?? 'flexible',
-      terminologyJson: { reactor: 'Reactor', laboratory: 'Laboratory', site: 'Site' },
+      policyPack:
+        (process.env.INSTALL_POLICY_PACK as Client['policyPack']) ?? 'flexible',
+      terminologyJson: {
+        reactor: 'Reactor',
+        laboratory: 'Laboratory',
+        site: 'Site',
+      },
       status: 'ACTIVE',
     });
     await manager.save(client);
-    console.log(`Created client "${client.name}" (${client.edition}/${client.policyPack})`);
+    console.log(
+      `Created client "${client.name}" (${client.edition}/${client.policyPack})`,
+    );
   } else {
     console.log(`Client already exists: ${client.name}`);
   }
@@ -55,15 +62,22 @@ async function seed() {
   for (const def of roleDefs) {
     let role = await manager.findOne(Role, { where: { code: def.code } });
     if (!role) {
-      role = manager.create(Role, { id: newId(), code: def.code, name: def.name });
+      role = manager.create(Role, {
+        id: newId(),
+        code: def.code,
+        name: def.name,
+      });
       await manager.save(role);
       console.log(`Created role ${def.code}`);
     }
     roleIdByCode[def.code] = role.id;
   }
 
-  const borosilUsername = process.env.SEED_BOROSIL_ADMIN_USERNAME ?? 'borosil_admin';
-  let borosilAdmin = await manager.findOne(AppUser, { where: { username: borosilUsername } });
+  const borosilUsername =
+    process.env.SEED_BOROSIL_ADMIN_USERNAME ?? 'borosil_admin';
+  let borosilAdmin = await manager.findOne(AppUser, {
+    where: { username: borosilUsername },
+  });
   if (!borosilAdmin) {
     const password = process.env.SEED_BOROSIL_ADMIN_PASSWORD ?? 'ChangeMe123!';
     borosilAdmin = manager.create(AppUser, {
@@ -74,7 +88,10 @@ async function seed() {
       status: 'ACTIVE',
     });
     await manager.save(borosilAdmin);
-    await manager.save(UserRole, { userId: borosilAdmin.id, roleId: roleIdByCode['BOROSIL_ADMIN'] });
+    await manager.save(UserRole, {
+      userId: borosilAdmin.id,
+      roleId: roleIdByCode['BOROSIL_ADMIN'],
+    });
     console.log(
       `Created Borosil Admin user "${borosilUsername}" with password "${password}" -- CHANGE THIS IMMEDIATELY.`,
     );

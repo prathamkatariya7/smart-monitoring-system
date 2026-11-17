@@ -10,7 +10,8 @@ import { AuditService } from '../audit/audit.service';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { CreateExportDto } from './dto/create-export.dto';
 
-const EXPORT_DIR = process.env.EXPORT_DIR ?? path.join(process.cwd(), 'exports');
+const EXPORT_DIR =
+  process.env.EXPORT_DIR ?? path.join(process.cwd(), 'exports');
 
 /**
  * Part 8.5: raw CSV export, selection-rule downsampling, and the
@@ -30,10 +31,16 @@ export class ExportsService {
   }
 
   async listForUser(userId: string): Promise<ExportJob[]> {
-    return currentManager().find(ExportJob, { where: { requestedBy: userId }, order: { createdAt: 'DESC' } });
+    return currentManager().find(ExportJob, {
+      where: { requestedBy: userId },
+      order: { createdAt: 'DESC' },
+    });
   }
 
-  async create(actor: AuthenticatedUser, dto: CreateExportDto): Promise<ExportJob> {
+  async create(
+    actor: AuthenticatedUser,
+    dto: CreateExportDto,
+  ): Promise<ExportJob> {
     const manager = currentManager();
     const job = manager.create(ExportJob, {
       id: newId(),
@@ -47,7 +54,9 @@ export class ExportsService {
       const rows = await manager
         .getRepository(Measurement)
         .createQueryBuilder('m')
-        .where('m.equipment_id = :equipmentId', { equipmentId: dto.equipmentId })
+        .where('m.equipment_id = :equipmentId', {
+          equipmentId: dto.equipmentId,
+        })
         .andWhere('m.ts >= :from', { from: new Date(dto.from) })
         .andWhere('m.ts <= :to', { to: new Date(dto.to) })
         .orderBy('m.ts', 'ASC')
@@ -60,12 +69,16 @@ export class ExportsService {
       fs.writeFileSync(filePath, csv, 'utf8');
       const sha256 = crypto.createHash('sha256').update(csv).digest('hex');
 
-      await manager.update(ExportJob, { id: job.id }, {
-        status: 'DONE',
-        fileRef: filePath,
-        sha256,
-        completedAt: new Date(),
-      });
+      await manager.update(
+        ExportJob,
+        { id: job.id },
+        {
+          status: 'DONE',
+          fileRef: filePath,
+          sha256,
+          completedAt: new Date(),
+        },
+      );
 
       await this.audit.record({
         userId: actor.userId,
@@ -76,7 +89,11 @@ export class ExportsService {
         newValue: { rowCount: rows.length, sha256 },
       });
     } catch (err: any) {
-      await manager.update(ExportJob, { id: job.id }, { status: 'FAILED', error: err.message });
+      await manager.update(
+        ExportJob,
+        { id: job.id },
+        { status: 'FAILED', error: err.message },
+      );
     }
     return this.get(job.id);
   }
@@ -108,7 +125,9 @@ export class ExportsService {
     const selected =
       !intervalS || intervalS <= 1
         ? rows
-        : rows.filter((r) => Math.floor(r.ts.getTime() / 1000) % intervalS === 0);
+        : rows.filter(
+            (r) => Math.floor(r.ts.getTime() / 1000) % intervalS === 0,
+          );
 
     const lines = selected.map((r) =>
       [

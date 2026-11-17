@@ -87,7 +87,9 @@ export class EquipmentDevice1730000000002 implements MigrationInterface {
       CREATE UNIQUE INDEX device_binding_open_equipment_uq
         ON device_binding (equipment_id) WHERE (bound_to IS NULL);
     `);
-    await queryRunner.query(`ALTER TABLE device_binding ENABLE ROW LEVEL SECURITY;`);
+    await queryRunner.query(
+      `ALTER TABLE device_binding ENABLE ROW LEVEL SECURITY;`,
+    );
     await queryRunner.query(`
       CREATE POLICY device_binding_lab_isolation ON device_binding
       USING (

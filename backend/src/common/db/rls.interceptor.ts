@@ -31,9 +31,7 @@ export class RlsInterceptor implements NestInterceptor {
     return from(
       this.db.runInContext(authContext, async () => {
         return new Promise((resolve, reject) => {
-          next
-            .handle()
-            .subscribe({ next: resolve, error: reject });
+          next.handle().subscribe({ next: resolve, error: reject });
         });
       }),
     ).pipe(switchMap((result) => from([result])));

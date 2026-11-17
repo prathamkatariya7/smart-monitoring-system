@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { EquipmentService } from './equipment.service';
 import { CreateReactorDto } from './dto/create-reactor.dto';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -25,8 +33,17 @@ export class EquipmentController {
 
   @Roles('ADMIN')
   @Post()
-  create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateReactorDto) {
-    return this.equipment.create(user, dto.laboratoryId, dto.reactorNumber, dto.displayName, dto.profileId);
+  create(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateReactorDto,
+  ) {
+    return this.equipment.create(
+      user,
+      dto.laboratoryId,
+      dto.reactorNumber,
+      dto.displayName,
+      dto.profileId,
+    );
   }
 
   @Roles('ADMIN', 'LAB_INCHARGE')
@@ -36,7 +53,12 @@ export class EquipmentController {
     @Param('id') id: string,
     @Body() body: ReasonRequiredDto & { maintenanceMode: boolean },
   ) {
-    return this.equipment.setMaintenanceMode(user, id, body.maintenanceMode, body.reason);
+    return this.equipment.setMaintenanceMode(
+      user,
+      id,
+      body.maintenanceMode,
+      body.reason,
+    );
   }
 
   @Roles('ADMIN')

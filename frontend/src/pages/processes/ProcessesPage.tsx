@@ -7,7 +7,7 @@ import { reactorsApi } from '@/api/reactors';
 import { authApi } from '@/api/auth';
 import { useAuthStore } from '@/store/auth.store';
 import { RoleGate } from '@/auth/RoleGate';
-import type { ProcessStatus } from '@/api/types';
+import type { Process, ProcessStatus } from '@/api/types';
 
 const STATUS_COLORS: Record<ProcessStatus, string> = {
   SCHEDULED: 'default',
@@ -173,7 +173,7 @@ export function ProcessesPage() {
     {
       title: 'Assigned Analyst',
       key: 'assignedAnalyst',
-      render: (_: unknown, p: any) => {
+      render: (_: unknown, p: Process) => {
         if (!p.ownerAnalystName) {
           return <span style={{ color: '#8c8c8c', fontStyle: 'italic' }}>Unassigned</span>;
         }

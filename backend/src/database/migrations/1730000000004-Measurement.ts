@@ -10,7 +10,21 @@ export class Measurement1730000000004 implements MigrationInterface {
   name = 'Measurement1730000000004';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS timescaledb;`);
+    const timescaleRows = await queryRunner.query(
+      `SELECT 1 FROM pg_available_extensions WHERE name = 'timescaledb'`,
+    );
+    const hasTimescale = timescaleRows.length > 0;
+    const allowPlainPostgres =
+      process.env.NODE_ENV !== 'production' &&
+      process.env.ALLOW_PLAIN_POSTGRES === 'true';
+    if (!hasTimescale && !allowPlainPostgres) {
+      throw new Error(
+        'TimescaleDB is required for production migrations. Set ALLOW_PLAIN_POSTGRES=true only for development smoke tests.',
+      );
+    }
+    if (hasTimescale) {
+      await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS timescaledb;`);
+    }
 
     await queryRunner.query(`
       CREATE TABLE measurement (
@@ -38,16 +52,24 @@ export class Measurement1730000000004 implements MigrationInterface {
         PRIMARY KEY (device_id, boot_id, seq, ts)
       );
     `);
-    await queryRunner.query(`
-      SELECT create_hypertable('measurement', 'ts', chunk_time_interval => INTERVAL '1 day');
-    `);
-    await queryRunner.query(`CREATE INDEX measurement_attempt_ts_idx ON measurement (attempt_id, ts);`);
-    await queryRunner.query(`CREATE INDEX measurement_equipment_ts_idx ON measurement (equipment_id, ts DESC);`);
+    if (hasTimescale) {
+      await queryRunner.query(`
+        SELECT create_hypertable('measurement', 'ts', chunk_time_interval => INTERVAL '1 day');
+      `);
+    }
+    await queryRunner.query(
+      `CREATE INDEX measurement_attempt_ts_idx ON measurement (attempt_id, ts);`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX measurement_equipment_ts_idx ON measurement (equipment_id, ts DESC);`,
+    );
 
     // RLS must be enabled before compression is turned on -- TimescaleDB
     // refuses ALTER TABLE ... ENABLE ROW LEVEL SECURITY on a hypertable that
     // already has a columnstore/compression policy attached.
-    await queryRunner.query(`ALTER TABLE measurement ENABLE ROW LEVEL SECURITY;`);
+    await queryRunner.query(
+      `ALTER TABLE measurement ENABLE ROW LEVEL SECURITY;`,
+    );
     await queryRunner.query(`
       CREATE POLICY measurement_lab_isolation ON measurement
       USING (
@@ -79,7 +101,9 @@ export class Measurement1730000000004 implements MigrationInterface {
     // `);
 
     // 10.3: application role gets INSERT and SELECT only, never UPDATE/DELETE
-    await queryRunner.query(`REVOKE UPDATE, DELETE ON measurement FROM rmp_app;`);
+    await queryRunner.query(
+      `REVOKE UPDATE, DELETE ON measurement FROM rmp_app;`,
+    );
     await queryRunner.query(`GRANT INSERT, SELECT ON measurement TO rmp_app;`);
 
     await queryRunner.query(`

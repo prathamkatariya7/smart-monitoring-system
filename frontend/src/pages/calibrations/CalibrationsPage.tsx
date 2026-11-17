@@ -19,6 +19,8 @@ import { calibrationsApi, type CreateCalibrationBody } from '@/api/calibrations'
 import { devicesApi } from '@/api/devices';
 import type { Equipment, CalibrationVersion } from '@/api/types';
 
+type CalibrationErrorPoint = { reference: number; indicated: number; error: number };
+
 export function CalibrationsPage() {
   const qc = useQueryClient();
   const { message } = App.useApp();
@@ -118,7 +120,7 @@ export function CalibrationsPage() {
       title: 'Correction Coefficients',
       key: 'coefficients',
       render: (_: unknown, r: CalibrationVersion) => {
-        const coeff = (r.coefficientsJson as any) ?? {};
+        const coeff = r.coefficientsJson;
         const a = typeof coeff.a === 'number' ? coeff.a.toFixed(4) : '1.0000';
         const b = typeof coeff.b === 'number' ? (coeff.b >= 0 ? `+${coeff.b.toFixed(2)}` : coeff.b.toFixed(2)) : '0.00';
         return <code>T_cal = ({a} × T_raw) {b}</code>;
@@ -128,9 +130,9 @@ export function CalibrationsPage() {
       title: 'Error Points',
       key: 'errors',
       render: (_: unknown, r: CalibrationVersion) => {
-        const errs = (r.errorSummary as any)?.errors;
+        const errs = (r.errorSummary as { errors?: CalibrationErrorPoint[] } | undefined)?.errors;
         if (!Array.isArray(errs)) return '-';
-        return errs.map((e: any, idx: number) => (
+        return errs.map((e, idx) => (
           <div key={idx} style={{ fontSize: 12 }}>
             Ref: {e.reference}°C → Ind: {e.indicated}°C (Err: {e.error >= 0 ? `+${e.error}` : e.error}°C)
           </div>

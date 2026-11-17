@@ -1,9 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { EntityManager, IsNull } from 'typeorm';
 import { Db } from '../common/db/db.service';
 import { newId } from '../common/util/id.util';
 import { MqttClientService } from './mqtt-client.service';
-import { BatchPayload, DeviceEventPayload, DeviceStatePayload, FLAG_BITS } from './mqtt.types';
+import {
+  BatchPayload,
+  DeviceEventPayload,
+  DeviceStatePayload,
+  MotorIdentityPayload,
+  FLAG_BITS,
+} from './mqtt.types';
 import { Device } from '../devices/entities/device.entity';
 import { DeviceBinding } from '../devices/entities/device-binding.entity';
 import { DeviceState } from './entities/device-state.entity';
@@ -16,7 +23,6 @@ import { CfgDesiredService } from './cfg-desired.service';
 import { Process } from '../processes/entities/process.entity';
 import { ProcessAssignment } from '../processes/entities/process-assignment.entity';
 import { ProcessAttempt } from '../processes/entities/process-attempt.entity';
-import { Equipment } from '../equipment/entities/equipment.entity';
 
 /**
  * Part 8.2/8.3 ingestion pipeline: subscribes to every device's state/
@@ -39,18 +45,98 @@ export class IngestionService {
     private readonly alarms: AlarmsService,
     private readonly notifications: NotificationsService,
     private readonly cfgDesired: CfgDesiredService,
-  ) { }
+    private readonly config: ConfigService,
+  ) {}
 
   registerHandlers(): void {
-    this.mqtt.subscribe('rmp/v1/+/state', (topic, payload) => this.onState(topic, payload));
-    this.mqtt.subscribe('rmp/v1/+/tele/batch', (topic, payload) => this.onBatch(topic, payload, false));
-    this.mqtt.subscribe('rmp/v1/+/tele/backlog', (topic, payload) => this.onBatch(topic, payload, true));
-    this.mqtt.subscribe('rmp/v1/+/event', (topic, payload) => this.onEvent(topic, payload));
+    this.mqtt.subscribe('rmp/v1/+/state', (topic, payload) =>
+      this.onState(topic, payload),
+    );
+    this.mqtt.subscribe('rmp/v1/+/tele/batch', (topic, payload) =>
+      this.onBatch(topic, payload, false),
+    );
+    this.mqtt.subscribe('rmp/v1/+/tele/backlog', (topic, payload) =>
+      this.onBatch(topic, payload, true),
+    );
+    this.mqtt.subscribe('rmp/v1/+/event', (topic, payload) =>
+      this.onEvent(topic, payload),
+    );
   }
 
   private deviceIdFromTopic(topic: string): string {
     // rmp/v1/{device_id}/...
     return topic.split('/')[2];
+  }
+
+  private async recordMotorIdentity(
+    manager: EntityManager,
+    deviceId: string,
+    motor: MotorIdentityPayload | undefined,
+  ): Promise<void> {
+    if (motor && motor.detected === false) {
+      await manager.update(
+        Device,
+        { id: deviceId },
+        {
+          motorManufacturer: null,
+          motorModel: null,
+          motorProtocol: null,
+          motorSerialNo: null,
+          motorDetectedAt: null,
+        },
+      );
+      return;
+    }
+    if (
+      !motor?.detected ||
+      !motor.manufacturer ||
+      !motor.model ||
+      !motor.protocol
+    )
+      return;
+    const manufacturer = motor.manufacturer.trim().slice(0, 32);
+    const model = motor.model.trim().slice(0, 128);
+    const protocol = motor.protocol.trim().slice(0, 64);
+    const serialNo =
+      typeof motor.serial === 'string' ? motor.serial.trim().slice(0, 128) : '';
+    if (!manufacturer || !model || !protocol) return;
+    const seenAt = new Date();
+    await manager.update(
+      Device,
+      { id: deviceId },
+      {
+        motorManufacturer: manufacturer,
+        motorModel: model,
+        motorProtocol: protocol,
+        motorSerialNo: serialNo || null,
+        motorDetectedAt: seenAt,
+      },
+    );
+    await manager.query(
+      `INSERT INTO device_motor_identity
+        (id, device_id, manufacturer, model, protocol, serial_no, first_seen, last_seen, observation_count, raw_identity)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $7, 1, $8::jsonb)
+       ON CONFLICT (device_id, manufacturer, model, protocol, serial_no)
+       DO UPDATE SET last_seen = EXCLUDED.last_seen,
+         observation_count = device_motor_identity.observation_count + 1,
+         raw_identity = EXCLUDED.raw_identity`,
+      [
+        newId(),
+        deviceId,
+        manufacturer,
+        model,
+        protocol,
+        serialNo,
+        seenAt,
+        JSON.stringify({
+          detected: true,
+          manufacturer,
+          model,
+          protocol,
+          serial: serialNo || null,
+        }),
+      ],
+    );
   }
 
   private async onState(topic: string, payload: Buffer): Promise<void> {
@@ -66,7 +152,9 @@ export class IngestionService {
     await this.db.runAsAdmin(async (manager) => {
       let device = await manager.findOne(Device, { where: { id: deviceId } });
       if (device && device.status === 'DECOMMISSIONED') {
-        this.logger.warn(`State heartbeat from decommissioned device ${deviceId} -- sending decommission directive`);
+        this.logger.warn(
+          `State heartbeat from decommissioned device ${deviceId} -- sending decommission directive`,
+        );
         this.mqtt.publish(
           `rmp/v1/${deviceId}/cfg/desired`,
           JSON.stringify({
@@ -80,6 +168,17 @@ export class IngestionService {
         return;
       }
       if (!device) {
+        if (
+          !this.config.get<boolean>(
+            'security.allowDevDeviceAutoRegistration',
+            false,
+          )
+        ) {
+          this.logger.error(
+            `Rejected unknown device ${deviceId}; claim the device before enabling telemetry`,
+          );
+          return;
+        }
         device = manager.create(Device, {
           id: deviceId,
           serialNo: `DEV-${deviceId.slice(-4).toUpperCase()}`,
@@ -89,14 +188,19 @@ export class IngestionService {
           lastSeen: new Date(),
         });
         await manager.save(device);
-        this.logger.log(`Auto-registered new hardware board ${deviceId} (${device.serialNo})`);
+        this.logger.log(
+          `Auto-registered new hardware board ${deviceId} (${device.serialNo})`,
+        );
       }
+      await this.recordMotorIdentity(manager, deviceId, parsed.motor);
       // Lock order: Device row, then DeviceState row -- must match onBatch()'s
       // order exactly, or concurrent state/batch messages for the same device
       // can deadlock (see the longer comment in onBatch()).
       await manager.update(Device, { id: deviceId }, { lastSeen: new Date() });
 
-      const existing = await manager.findOne(DeviceState, { where: { deviceId } });
+      const existing = await manager.findOne(DeviceState, {
+        where: { deviceId },
+      });
       await manager.save(DeviceState, {
         deviceId,
         bootId: parsed.boot ?? existing?.bootId ?? null,
@@ -107,11 +211,26 @@ export class IngestionService {
         online: parsed.online,
         updatedAt: new Date(),
       });
-      this.notifications.broadcast('device_status', { deviceId, online: parsed.online });
+      this.notifications.broadcast('device_status', {
+        deviceId,
+        online: parsed.online,
+        motor: parsed.motor?.detected
+          ? {
+              manufacturer: parsed.motor.manufacturer,
+              model: parsed.motor.model,
+              protocol: parsed.motor.protocol,
+              serial: parsed.motor.serial ?? null,
+            }
+          : null,
+      });
     });
   }
 
-  private async onBatch(topic: string, payload: Buffer, fromBacklog: boolean): Promise<void> {
+  private async onBatch(
+    topic: string,
+    payload: Buffer,
+    fromBacklog: boolean,
+  ): Promise<void> {
     const deviceId = this.deviceIdFromTopic(topic);
     let batch: BatchPayload;
     try {
@@ -124,7 +243,9 @@ export class IngestionService {
     await this.db.runAsAdmin(async (manager) => {
       const device = await manager.findOne(Device, { where: { id: deviceId } });
       if (device && device.status === 'DECOMMISSIONED') {
-        this.logger.warn(`Batch from decommissioned device ${deviceId} -- rejected`);
+        this.logger.warn(
+          `Batch from decommissioned device ${deviceId} -- rejected`,
+        );
         this.mqtt.publish(
           `rmp/v1/${deviceId}/cfg/desired`,
           JSON.stringify({
@@ -161,7 +282,8 @@ export class IngestionService {
       const iFl = colIndex('fl');
 
       const state = await manager.findOne(DeviceState, { where: { deviceId } });
-      let priorSeq = state?.bootId === batch.boot ? state?.lastSeq ?? null : null;
+      let priorSeq =
+        state?.bootId === batch.boot ? (state?.lastSeq ?? null) : null;
       const batchId = newId();
       const receivedAt = new Date();
 
@@ -235,7 +357,8 @@ export class IngestionService {
             temperatureRawC: tempRawVal,
             rpm: rpmVal,
             torqueNcm: tqVal,
-            quality: iQ >= 0 && row[iQ] ? this.encodeQuality(String(row[iQ])) : null,
+            quality:
+              iQ >= 0 && row[iQ] ? this.encodeQuality(String(row[iQ])) : null,
             faultCode: iFlt >= 0 ? numOrNull(row[iFlt]) : null,
             flags,
             calibrationVersion: batch.cal ?? null,
@@ -246,11 +369,16 @@ export class IngestionService {
           .execute();
 
         // Part 6: server-side threshold evaluation (system of record, C-07).
-        await this.alarms.evaluateSample(binding.equipmentId, binding.laboratoryId, batch.attempt ?? null, {
-          temperature_c: tempVal,
-          rpm: rpmVal,
-          torque_ncm: tqVal,
-        });
+        await this.alarms.evaluateSample(
+          binding.equipmentId,
+          binding.laboratoryId,
+          batch.attempt ?? null,
+          {
+            temperature_c: tempVal,
+            rpm: rpmVal,
+            torque_ncm: tqVal,
+          },
+        );
 
         priorSeq = seq;
       }
@@ -270,14 +398,20 @@ export class IngestionService {
         bootId: batch.boot,
         lastSeq: priorSeq,
         lastTs: new Date(),
-        lastMonoMs: iMono >= 0 && batch.d.length ? String(batch.d[batch.d.length - 1][iMono]) : null,
+        lastMonoMs:
+          iMono >= 0 && batch.d.length
+            ? String(batch.d[batch.d.length - 1][iMono])
+            : null,
         link: batch.link ?? state?.link ?? null,
         online: true,
         updatedAt: new Date(),
       });
 
       if (!state?.online) {
-        this.notifications.broadcast('device_status', { deviceId, online: true });
+        this.notifications.broadcast('device_status', {
+          deviceId,
+          online: true,
+        });
       }
 
       if (priorSeq !== null) {
@@ -321,7 +455,9 @@ export class IngestionService {
     await this.db.runAsAdmin(async (manager: EntityManager) => {
       let device = await manager.findOne(Device, { where: { id: deviceId } });
       if (device && device.status === 'DECOMMISSIONED') {
-        this.logger.warn(`State heartbeat from decommissioned device ${deviceId} -- sending decommission directive`);
+        this.logger.warn(
+          `State heartbeat from decommissioned device ${deviceId} -- sending decommission directive`,
+        );
         this.mqtt.publish(
           `rmp/v1/${deviceId}/cfg/desired`,
           JSON.stringify({
@@ -335,6 +471,17 @@ export class IngestionService {
         return;
       }
       if (!device) {
+        if (
+          !this.config.get<boolean>(
+            'security.allowDevDeviceAutoRegistration',
+            false,
+          )
+        ) {
+          this.logger.error(
+            `Rejected unknown device ${deviceId}; claim the device before enabling telemetry`,
+          );
+          return;
+        }
         device = manager.create(Device, {
           id: deviceId,
           serialNo: `DEV-${deviceId.slice(-4).toUpperCase()}`,
@@ -344,7 +491,9 @@ export class IngestionService {
           lastSeen: new Date(),
         });
         await manager.save(device);
-        this.logger.log(`Auto-registered new hardware board ${deviceId} (${device.serialNo})`);
+        this.logger.log(
+          `Auto-registered new hardware board ${deviceId} (${device.serialNo})`,
+        );
       }
 
       await manager.save(DeviceEvent, {
@@ -356,13 +505,28 @@ export class IngestionService {
         detailJson: event as unknown as Record<string, unknown>,
       });
 
+      if (
+        event.type === 'MOTOR_IDENTIFIED' &&
+        event.detail &&
+        typeof event.detail === 'object'
+      ) {
+        await this.recordMotorIdentity(manager, deviceId, {
+          detected: true,
+          ...(event.detail as Record<string, unknown>),
+        } as MotorIdentityPayload);
+      }
+
       // Part 7.5: a TIME_ANCHOR event is the device confirming it has
       // resynced to real NTP time; record it on the device record.
       if (event.type === 'TIME_ANCHOR') {
-        await manager.update(Device, { id: deviceId }, {
-          clockSource: 'NTP',
-          lastNtpSync: new Date(),
-        });
+        await manager.update(
+          Device,
+          { id: deviceId },
+          {
+            clockSource: 'NTP',
+            lastNtpSync: new Date(),
+          },
+        );
       }
 
       // HMI Analyst Workflow Events: ACCEPT, REJECT, START, CANCEL
@@ -374,8 +538,12 @@ export class IngestionService {
         const activeProcess = await manager
           .getRepository(Process)
           .createQueryBuilder('p')
-          .where('p.equipment_id = :equipmentId', { equipmentId: binding.equipmentId })
-          .andWhere("p.status IN ('SCHEDULED', 'ACCEPTED', 'RUNNING', 'PAUSED')")
+          .where('p.equipment_id = :equipmentId', {
+            equipmentId: binding.equipmentId,
+          })
+          .andWhere(
+            "p.status IN ('SCHEDULED', 'ACCEPTED', 'RUNNING', 'PAUSED')",
+          )
           .orderBy('p.planned_start_utc', 'ASC')
           .getOne();
 
@@ -384,7 +552,11 @@ export class IngestionService {
 
         if (activeProcess) {
           if (event.type === 'ASSIGNMENT_ACCEPTED') {
-            await manager.update(Process, { id: activeProcess.id }, { status: 'ACCEPTED' });
+            await manager.update(
+              Process,
+              { id: activeProcess.id },
+              { status: 'ACCEPTED' },
+            );
             await manager.update(
               ProcessAssignment,
               { processId: activeProcess.id, role: 'OWNER' },
@@ -403,14 +575,25 @@ export class IngestionService {
               'process',
               activeProcess.id,
             );
-            this.notifications.broadcast('process_updated', { processId: activeProcess.id, status: 'ACCEPTED' });
+            this.notifications.broadcast('process_updated', {
+              processId: activeProcess.id,
+              status: 'ACCEPTED',
+            });
             await this.cfgDesired.pushToDevice(deviceId);
           } else if (event.type === 'ASSIGNMENT_REJECTED') {
-            await manager.update(Process, { id: activeProcess.id }, { status: 'SCHEDULED' });
+            await manager.update(
+              Process,
+              { id: activeProcess.id },
+              { status: 'SCHEDULED' },
+            );
             await manager.update(
               ProcessAssignment,
               { processId: activeProcess.id, role: 'OWNER' },
-              { status: 'REJECTED', respondedAt: new Date(), rejectReason: 'Rejected on device' },
+              {
+                status: 'REJECTED',
+                respondedAt: new Date(),
+                rejectReason: 'Rejected on device',
+              },
             );
             await this.notifications.notifyLabIncharges(
               binding.laboratoryId,
@@ -425,10 +608,17 @@ export class IngestionService {
               'process',
               activeProcess.id,
             );
-            this.notifications.broadcast('process_updated', { processId: activeProcess.id, status: 'SCHEDULED' });
+            this.notifications.broadcast('process_updated', {
+              processId: activeProcess.id,
+              status: 'SCHEDULED',
+            });
             await this.cfgDesired.pushToDevice(deviceId);
           } else if (event.type === 'ATTEMPT_STARTED') {
-            await manager.update(Process, { id: activeProcess.id }, { status: 'RUNNING' });
+            await manager.update(
+              Process,
+              { id: activeProcess.id },
+              { status: 'RUNNING' },
+            );
             const existingAttempt = await manager.findOne(ProcessAttempt, {
               where: { processId: activeProcess.id, status: 'RUNNING' },
             });
@@ -455,10 +645,17 @@ export class IngestionService {
               'process',
               activeProcess.id,
             );
-            this.notifications.broadcast('process_updated', { processId: activeProcess.id, status: 'RUNNING' });
+            this.notifications.broadcast('process_updated', {
+              processId: activeProcess.id,
+              status: 'RUNNING',
+            });
             await this.cfgDesired.pushToDevice(deviceId);
           } else if (event.type === 'PROCESS_CANCELLED') {
-            await manager.update(Process, { id: activeProcess.id }, { status: 'CANCELLED' });
+            await manager.update(
+              Process,
+              { id: activeProcess.id },
+              { status: 'CANCELLED' },
+            );
             await this.notifications.notifyLabIncharges(
               binding.laboratoryId,
               'PROCESS_CANCELLED',
@@ -472,19 +669,31 @@ export class IngestionService {
               'process',
               activeProcess.id,
             );
-            this.notifications.broadcast('process_updated', { processId: activeProcess.id, status: 'CANCELLED' });
+            this.notifications.broadcast('process_updated', {
+              processId: activeProcess.id,
+              status: 'CANCELLED',
+            });
             await this.cfgDesired.pushToDevice(deviceId);
           } else if (event.type === 'PROCESS_ABORTED') {
-            await manager.update(Process, { id: activeProcess.id }, { status: 'ABORTED' });
+            await manager.update(
+              Process,
+              { id: activeProcess.id },
+              { status: 'ABORTED' },
+            );
             const currentAttempt = await manager.findOne(ProcessAttempt, {
               where: { processId: activeProcess.id, status: 'RUNNING' },
             });
             if (currentAttempt) {
-              await manager.update(ProcessAttempt, { id: currentAttempt.id }, {
-                status: 'ABORTED',
-                endTs: new Date(),
-                endReason: (event as any).reason ?? 'Aborted from hardware device',
-              });
+              await manager.update(
+                ProcessAttempt,
+                { id: currentAttempt.id },
+                {
+                  status: 'ABORTED',
+                  endTs: new Date(),
+                  endReason:
+                    (event as any).reason ?? 'Aborted from hardware device',
+                },
+              );
             }
             await this.notifications.notifyLabIncharges(
               binding.laboratoryId,
@@ -499,17 +708,28 @@ export class IngestionService {
               'process',
               activeProcess.id,
             );
-            this.notifications.broadcast('process_updated', { processId: activeProcess.id, status: 'ABORTED' });
+            this.notifications.broadcast('process_updated', {
+              processId: activeProcess.id,
+              status: 'ABORTED',
+            });
             await this.cfgDesired.pushToDevice(deviceId);
           }
         }
 
         // Direct hardware device alarms (independent of process context)
-        const alarmDetail = (event as any).detail ?? (event as any).detailJson ?? event;
+        const alarmDetail =
+          (event as any).detail ?? (event as any).detailJson ?? event;
         if (event.type === 'ALARM_TRIGGERED') {
-          await this.alarms.handleDeviceAlarm(binding.equipmentId, binding.laboratoryId, alarmDetail);
+          await this.alarms.handleDeviceAlarm(
+            binding.equipmentId,
+            binding.laboratoryId,
+            alarmDetail,
+          );
         } else if (event.type === 'ALARM_CLEARED') {
-          await this.alarms.handleDeviceAlarmCleared(binding.equipmentId, alarmDetail);
+          await this.alarms.handleDeviceAlarmCleared(
+            binding.equipmentId,
+            alarmDetail,
+          );
         } else if (event.type === 'ALERT_MUTED') {
           await this.notifications.notifyLabIncharges(
             binding.laboratoryId,

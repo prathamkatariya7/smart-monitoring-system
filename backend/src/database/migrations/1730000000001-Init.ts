@@ -65,7 +65,9 @@ export class Init1730000000001 implements MigrationInterface {
         UNIQUE (site_id, name)
       );
     `);
-    await queryRunner.query(`ALTER TABLE laboratory ENABLE ROW LEVEL SECURITY;`);
+    await queryRunner.query(
+      `ALTER TABLE laboratory ENABLE ROW LEVEL SECURITY;`,
+    );
     await queryRunner.query(`
       CREATE POLICY laboratory_scope_isolation ON laboratory
       USING (

@@ -40,7 +40,13 @@ export class DevicesController {
 
   @Post('claim')
   claim(@CurrentUser() user: AuthenticatedUser, @Body() dto: ClaimDeviceDto) {
-    return this.devices.claim(user, dto.serialNo, dto.claimCode, dto.hwRevision, dto.certSerial);
+    return this.devices.claim(
+      user,
+      dto.serialNo,
+      dto.claimCode,
+      dto.hwRevision,
+      dto.certSerial,
+    );
   }
 
   @Post('claim/bulk')
@@ -49,34 +55,73 @@ export class DevicesController {
   }
 
   @Post(':id/bind')
-  bind(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: BindDeviceDto) {
+  bind(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: BindDeviceDto,
+  ) {
     return this.devices.bind(user, id, dto.equipmentId, dto.reason);
   }
 
   @Post(':id/unbind')
-  unbind(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ReasonRequiredDto) {
+  unbind(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: ReasonRequiredDto,
+  ) {
     return this.devices.unbind(user, id, dto.reason).then(() => ({ ok: true }));
   }
 
   @Post(':id/replace')
-  replace(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ReplaceDeviceDto) {
-    return this.devices.replace(user, id, dto.newDeviceId, dto.mapToEquipmentId, dto.reason);
+  replace(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: ReplaceDeviceDto,
+  ) {
+    return this.devices.replace(
+      user,
+      id,
+      dto.newDeviceId,
+      dto.mapToEquipmentId,
+      dto.reason,
+    );
   }
 
   @Post(':id/decommission')
-  decommission(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ReasonRequiredDto) {
+  decommission(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: ReasonRequiredDto,
+  ) {
     return this.devices.decommission(user, id, dto.reason);
   }
 
   @Post(':id/reactivate')
-  reactivate(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ReasonRequiredDto) {
-    return this.devices.reactivate(user, id, dto?.reason || 'Reactivated by admin');
+  reactivate(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: ReasonRequiredDto,
+  ) {
+    return this.devices.reactivate(
+      user,
+      id,
+      dto?.reason || 'Reactivated by admin',
+    );
   }
 
   /** Part 8.2 cmd/{name} + ack/cmd: generic command send (set_calibration, set_policy, etc. land via their modules). */
   @Post(':id/commands')
-  async sendCommand(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: SendCommandDto) {
-    const commandId = await this.commandDispatcher.send(id, dto.cmd, dto.payload, user.userId);
+  async sendCommand(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: SendCommandDto,
+  ) {
+    const commandId = await this.commandDispatcher.send(
+      id,
+      dto.cmd,
+      dto.payload,
+      user.userId,
+    );
     return { commandId };
   }
 

@@ -33,6 +33,21 @@ export class Device {
   @Column({ name: 'dwin_project_ver', type: 'text', nullable: true })
   dwinProjectVer: string | null;
 
+  @Column({ name: 'motor_manufacturer', type: 'text', nullable: true })
+  motorManufacturer: string | null;
+
+  @Column({ name: 'motor_model', type: 'text', nullable: true })
+  motorModel: string | null;
+
+  @Column({ name: 'motor_protocol', type: 'text', nullable: true })
+  motorProtocol: string | null;
+
+  @Column({ name: 'motor_serial_no', type: 'text', nullable: true })
+  motorSerialNo: string | null;
+
+  @Column({ name: 'motor_detected_at', type: 'timestamptz', nullable: true })
+  motorDetectedAt: Date | null;
+
   @Column({ name: 'last_seen', type: 'timestamptz', nullable: true })
   lastSeen: Date | null;
 

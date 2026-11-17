@@ -31,7 +31,13 @@ export class ProcessAttempt {
   endReason: string | null;
 
   @Column({ default: 'PENDING' })
-  status: 'PENDING' | 'RUNNING' | 'PAUSED' | 'AWAITING_COMPLETION' | 'COMPLETED' | 'ABORTED';
+  status:
+    | 'PENDING'
+    | 'RUNNING'
+    | 'PAUSED'
+    | 'AWAITING_COMPLETION'
+    | 'COMPLETED'
+    | 'ABORTED';
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

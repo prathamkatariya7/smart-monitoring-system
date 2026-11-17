@@ -1,4 +1,8 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { currentManager } from '../common/db/request-context';
 import { newId } from '../common/util/id.util';
 import { Equipment } from './entities/equipment.entity';
@@ -18,26 +22,35 @@ export class EquipmentService {
   constructor(private readonly audit: AuditService) {}
 
   async list(): Promise<EquipmentWithConnectivity[]> {
-    const list = await currentManager().find(Equipment, { where: { status: 'ACTIVE' as const } });
+    const list = await currentManager().find(Equipment, {
+      where: { status: 'ACTIVE' as const },
+    });
     if (list.length === 0) return [];
 
     const activeBindings = await currentManager()
       .getRepository(DeviceBinding)
       .createQueryBuilder('b')
-      .where('b.equipment_id IN (:...ids) AND b.bound_to IS NULL', { ids: list.map((e) => e.id) })
+      .where('b.equipment_id IN (:...ids) AND b.bound_to IS NULL', {
+        ids: list.map((e) => e.id),
+      })
       .getMany();
 
     const deviceIds = activeBindings.map((b) => b.deviceId);
-    const deviceStates = deviceIds.length > 0
-      ? await currentManager()
-          .getRepository(DeviceState)
-          .createQueryBuilder('s')
-          .where('s.device_id IN (:...ids)', { ids: deviceIds })
-          .getMany()
-      : [];
+    const deviceStates =
+      deviceIds.length > 0
+        ? await currentManager()
+            .getRepository(DeviceState)
+            .createQueryBuilder('s')
+            .where('s.device_id IN (:...ids)', { ids: deviceIds })
+            .getMany()
+        : [];
 
-    const stateByDeviceId = new Map(deviceStates.map((s) => [s.deviceId, s.online]));
-    const bindingByEqId = new Map(activeBindings.map((b) => [b.equipmentId, b.deviceId]));
+    const stateByDeviceId = new Map(
+      deviceStates.map((s) => [s.deviceId, s.online]),
+    );
+    const bindingByEqId = new Map(
+      activeBindings.map((b) => [b.equipmentId, b.deviceId]),
+    );
 
     return list.map((eq) => {
       const devId = bindingByEqId.get(eq.id) ?? null;
@@ -129,7 +142,11 @@ export class EquipmentService {
     return this.get(id);
   }
 
-  async decommission(actor: AuthenticatedUser, id: string, reason: string): Promise<Equipment> {
+  async decommission(
+    actor: AuthenticatedUser,
+    id: string,
+    reason: string,
+  ): Promise<Equipment> {
     const manager = currentManager();
     await this.get(id);
     await manager.update(Equipment, { id }, { status: 'DECOMMISSIONED' });

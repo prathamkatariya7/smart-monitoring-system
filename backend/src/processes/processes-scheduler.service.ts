@@ -20,7 +20,9 @@ export class ProcessesSchedulerService {
       const due = await manager
         .getRepository(Process)
         .createQueryBuilder('p')
-        .where('p.status IN (:...statuses)', { statuses: ['RUNNING', 'PAUSED'] })
+        .where('p.status IN (:...statuses)', {
+          statuses: ['RUNNING', 'PAUSED'],
+        })
         .andWhere('p.planned_end_utc <= :now', { now: new Date() })
         .getMany();
 
@@ -28,7 +30,9 @@ export class ProcessesSchedulerService {
         try {
           await this.processes.markAwaitingCompletion(process.id);
         } catch (err: any) {
-          this.logger.error(`Failed to mark process ${process.id} AWAITING_COMPLETION: ${err.message}`);
+          this.logger.error(
+            `Failed to mark process ${process.id} AWAITING_COMPLETION: ${err.message}`,
+          );
         }
       }
     });

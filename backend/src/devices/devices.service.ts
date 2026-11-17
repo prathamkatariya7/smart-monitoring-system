@@ -42,7 +42,7 @@ export class DevicesService {
     private readonly licence: LicenceService,
     private readonly cfgDesired: CfgDesiredService,
     private readonly notifications: NotificationsService,
-  ) { }
+  ) {}
 
   async list(): Promise<DeviceWithConnectivity[]> {
     const devices = await currentManager().find(Device);
@@ -58,7 +58,9 @@ export class DevicesService {
 
   /** Joins DeviceState (no RLS policy -- same manager is fine) to attach the
    * real connectivity flag/last-telemetry-timestamp onto each Device row. */
-  private async withConnectivity(devices: Device[]): Promise<DeviceWithConnectivity[]> {
+  private async withConnectivity(
+    devices: Device[],
+  ): Promise<DeviceWithConnectivity[]> {
     if (devices.length === 0) return [];
     const manager = currentManager();
     const ids = devices.map((d) => d.id);
@@ -80,10 +82,10 @@ export class DevicesService {
     const equipments =
       eqIds.length > 0
         ? await manager
-          .getRepository(Equipment)
-          .createQueryBuilder('e')
-          .where('e.id IN (:...eqIds)', { eqIds })
-          .getMany()
+            .getRepository(Equipment)
+            .createQueryBuilder('e')
+            .where('e.id IN (:...eqIds)', { eqIds })
+            .getMany()
         : [];
     const eqById = new Map(equipments.map((e) => [e.id, e]));
     const bindingByDeviceId = new Map(
@@ -138,7 +140,10 @@ export class DevicesService {
     const manager = currentManager();
     const sNo = serialNo?.trim();
     const cCode = claimCode?.trim();
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cCode);
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        cCode,
+      );
     const cleanMac = cCode.replace(/[:-]/g, '').toLowerCase();
     const derivedUuid = /^[0-9a-f]{12}$/.test(cleanMac)
       ? `01a1af2d-e705-75aa-b3fc-${cleanMac}`
@@ -148,33 +153,46 @@ export class DevicesService {
       where: [
         { serialNo: sNo },
         { claimCode: cCode },
-        ...(isUuid ? [{ id: cCode.toLowerCase() }, { claimCode: cCode.toLowerCase() }] : []),
-        ...(derivedUuid ? [{ id: derivedUuid }, { claimCode: derivedUuid }] : []),
+        ...(isUuid
+          ? [{ id: cCode.toLowerCase() }, { claimCode: cCode.toLowerCase() }]
+          : []),
+        ...(derivedUuid
+          ? [{ id: derivedUuid }, { claimCode: derivedUuid }]
+          : []),
       ],
     });
 
     // Part 9.9: licence device-count limit only blocks claiming NEW devices,
     // never data collection/viewing/export on devices already claimed.
-    const alreadyClaimed = device?.claimState === 'CLAIMED' && device?.status === 'ACTIVE';
+    const alreadyClaimed =
+      device?.claimState === 'CLAIMED' && device?.status === 'ACTIVE';
     if (!alreadyClaimed) {
-      const activeCount = await manager.count(Device, { where: { claimState: 'CLAIMED', status: 'ACTIVE' } });
+      const activeCount = await manager.count(Device, {
+        where: { claimState: 'CLAIMED', status: 'ACTIVE' },
+      });
       const { allowed, reason } = this.licence.canClaimDevice(activeCount);
       if (!allowed) {
-        throw new ForbiddenException(reason ?? 'Licence does not permit claiming another device');
+        throw new ForbiddenException(
+          reason ?? 'Licence does not permit claiming another device',
+        );
       }
     }
 
     if (device) {
       if (device.status === 'DECOMMISSIONED') {
         // Re-claiming / reactivating an accidentally decommissioned device
-        await manager.update(Device, { id: device.id }, {
-          claimState: 'CLAIMED',
-          status: 'ACTIVE',
-          serialNo: sNo || device.serialNo,
-          hwRevision: hwRevision ?? device.hwRevision,
-          certSerial: certSerial ?? device.certSerial,
-          lastSeen: new Date(),
-        });
+        await manager.update(
+          Device,
+          { id: device.id },
+          {
+            claimState: 'CLAIMED',
+            status: 'ACTIVE',
+            serialNo: sNo || device.serialNo,
+            hwRevision: hwRevision ?? device.hwRevision,
+            certSerial: certSerial ?? device.certSerial,
+            lastSeen: new Date(),
+          },
+        );
         await this.audit.record({
           userId: actor.userId,
           action: 'DEVICE_CLAIMED',
@@ -188,8 +206,15 @@ export class DevicesService {
         } catch {
           // non-blocking push
         }
-        this.notifications.broadcast('device_status', { deviceId: device.id, status: 'ACTIVE', online: true });
-        this.notifications.broadcast('device_binding_changed', { deviceId: device.id, action: 'CLAIM' });
+        this.notifications.broadcast('device_status', {
+          deviceId: device.id,
+          status: 'ACTIVE',
+          online: true,
+        });
+        this.notifications.broadcast('device_binding_changed', {
+          deviceId: device.id,
+          action: 'CLAIM',
+        });
         return this.get(device.id);
       }
 
@@ -201,18 +226,26 @@ export class DevicesService {
         device.claimCode === cCode ||
         device.claimCode?.toLowerCase() === cCode.toLowerCase() ||
         device.id.toLowerCase() === cCode.toLowerCase() ||
-        (derivedUuid && (device.id.toLowerCase() === derivedUuid || device.claimCode?.toLowerCase() === derivedUuid));
+        (derivedUuid &&
+          (device.id.toLowerCase() === derivedUuid ||
+            device.claimCode?.toLowerCase() === derivedUuid));
 
       if (device.claimCode && !matchesClaimCode) {
-        throw new BadRequestException('Claim code does not match this device (C-23 trust check failed)');
+        throw new BadRequestException(
+          'Claim code does not match this device (C-23 trust check failed)',
+        );
       }
-      await manager.update(Device, { id: device.id }, {
-        claimState: 'CLAIMED',
-        status: 'ACTIVE',
-        serialNo: sNo || device.serialNo,
-        hwRevision: hwRevision ?? device.hwRevision,
-        certSerial: certSerial ?? device.certSerial,
-      });
+      await manager.update(
+        Device,
+        { id: device.id },
+        {
+          claimState: 'CLAIMED',
+          status: 'ACTIVE',
+          serialNo: sNo || device.serialNo,
+          hwRevision: hwRevision ?? device.hwRevision,
+          certSerial: certSerial ?? device.certSerial,
+        },
+      );
     } else {
       const targetId = isUuid ? cCode.toLowerCase() : (derivedUuid ?? newId());
       device = manager.create(Device, {
@@ -239,20 +272,35 @@ export class DevicesService {
     } catch {
       // non-blocking push
     }
-    this.notifications.broadcast('device_status', { deviceId: device.id, status: 'ACTIVE', online: true });
-    this.notifications.broadcast('device_binding_changed', { deviceId: device.id, action: 'CLAIM' });
+    this.notifications.broadcast('device_status', {
+      deviceId: device.id,
+      status: 'ACTIVE',
+      online: true,
+    });
+    this.notifications.broadcast('device_binding_changed', {
+      deviceId: device.id,
+      action: 'CLAIM',
+    });
     return this.get(device.id);
   }
 
-  async reactivate(actor: AuthenticatedUser, deviceId: string, reason: string): Promise<Device> {
+  async reactivate(
+    actor: AuthenticatedUser,
+    deviceId: string,
+    reason: string,
+  ): Promise<Device> {
     const manager = currentManager();
     const device = await manager.findOne(Device, { where: { id: deviceId } });
     if (!device) throw new NotFoundException('Device not found');
-    await manager.update(Device, { id: deviceId }, {
-      status: 'ACTIVE',
-      claimState: 'CLAIMED',
-      lastSeen: new Date(),
-    });
+    await manager.update(
+      Device,
+      { id: deviceId },
+      {
+        status: 'ACTIVE',
+        claimState: 'CLAIMED',
+        lastSeen: new Date(),
+      },
+    );
     await this.audit.record({
       userId: actor.userId,
       action: 'DEVICE_REACTIVATED',
@@ -267,8 +315,15 @@ export class DevicesService {
     } catch {
       // non-blocking push
     }
-    this.notifications.broadcast('device_status', { deviceId, status: 'ACTIVE', online: true });
-    this.notifications.broadcast('device_binding_changed', { deviceId, action: 'CLAIM' });
+    this.notifications.broadcast('device_status', {
+      deviceId,
+      status: 'ACTIVE',
+      online: true,
+    });
+    this.notifications.broadcast('device_binding_changed', {
+      deviceId,
+      action: 'CLAIM',
+    });
     return this.get(deviceId);
   }
 
@@ -276,7 +331,10 @@ export class DevicesService {
   async claimBulk(
     actor: AuthenticatedUser,
     csv: string,
-  ): Promise<{ claimed: Device[]; errors: Array<{ line: number; message: string }> }> {
+  ): Promise<{
+    claimed: Device[];
+    errors: Array<{ line: number; message: string }>;
+  }> {
     const lines = csv
       .split(/\r?\n/)
       .map((l) => l.trim())
@@ -285,10 +343,19 @@ export class DevicesService {
     const claimed: Device[] = [];
     const errors: Array<{ line: number; message: string }> = [];
     for (let i = 0; i < lines.length; i++) {
-      const [serialNo, claimCode, hwRevision, certSerial] = lines[i].split(',').map((s) => s.trim());
+      const [serialNo, claimCode, hwRevision, certSerial] = lines[i]
+        .split(',')
+        .map((s) => s.trim());
       try {
-        if (!serialNo || !claimCode) throw new BadRequestException('serialNo and claimCode are required');
-        const device = await this.claim(actor, serialNo, claimCode, hwRevision, certSerial);
+        if (!serialNo || !claimCode)
+          throw new BadRequestException('serialNo and claimCode are required');
+        const device = await this.claim(
+          actor,
+          serialNo,
+          claimCode,
+          hwRevision,
+          certSerial,
+        );
         claimed.push(device);
       } catch (err: any) {
         errors.push({ line: i + 1, message: err.message ?? 'unknown error' });
@@ -298,26 +365,37 @@ export class DevicesService {
   }
 
   /** Part 3.4 step 4 / Part 10.1: bind a claimed device to a reactor, opening device_binding. */
-  async bind(actor: AuthenticatedUser, deviceId: string, equipmentId: string, reason: string): Promise<DeviceBinding> {
+  async bind(
+    actor: AuthenticatedUser,
+    deviceId: string,
+    equipmentId: string,
+    reason: string,
+  ): Promise<DeviceBinding> {
     const manager = currentManager();
     const device = await this.get(deviceId);
     if (device.claimState !== 'CLAIMED') {
       throw new BadRequestException('Device must be claimed before binding');
     }
-    const equipment = await manager.findOne(Equipment, { where: { id: equipmentId } });
+    const equipment = await manager.findOne(Equipment, {
+      where: { id: equipmentId },
+    });
     if (!equipment) throw new NotFoundException('Reactor not found');
 
     const openDeviceBinding = await manager.findOne(DeviceBinding, {
       where: { deviceId, boundTo: IsNull() },
     });
     if (openDeviceBinding) {
-      throw new ConflictException('Device already has an open binding; unbind or replace first');
+      throw new ConflictException(
+        'Device already has an open binding; unbind or replace first',
+      );
     }
     const openEquipmentBinding = await manager.findOne(DeviceBinding, {
       where: { equipmentId, boundTo: IsNull() },
     });
     if (openEquipmentBinding) {
-      throw new ConflictException('Reactor already has a device bound; unbind or replace first');
+      throw new ConflictException(
+        'Reactor already has a device bound; unbind or replace first',
+      );
     }
 
     const binding = manager.create(DeviceBinding, {
@@ -346,16 +424,30 @@ export class DevicesService {
     } catch {
       // non-blocking push
     }
-    this.notifications.broadcast('device_binding_changed', { deviceId, equipmentId, action: 'BIND' });
+    this.notifications.broadcast('device_binding_changed', {
+      deviceId,
+      equipmentId,
+      action: 'BIND',
+    });
     this.notifications.broadcast('device_status', { deviceId, online: true });
     return binding;
   }
 
-  async unbind(actor: AuthenticatedUser, deviceId: string, reason: string): Promise<void> {
+  async unbind(
+    actor: AuthenticatedUser,
+    deviceId: string,
+    reason: string,
+  ): Promise<void> {
     const manager = currentManager();
-    const binding = await manager.findOne(DeviceBinding, { where: { deviceId, boundTo: IsNull() } });
+    const binding = await manager.findOne(DeviceBinding, {
+      where: { deviceId, boundTo: IsNull() },
+    });
     if (!binding) throw new NotFoundException('Device has no open binding');
-    await manager.update(DeviceBinding, { id: binding.id }, { boundTo: new Date(), reason });
+    await manager.update(
+      DeviceBinding,
+      { id: binding.id },
+      { boundTo: new Date(), reason },
+    );
     await this.audit.record({
       userId: actor.userId,
       action: 'DEVICE_UNBOUND',
@@ -369,7 +461,11 @@ export class DevicesService {
     } catch {
       // non-blocking push
     }
-    this.notifications.broadcast('device_binding_changed', { deviceId, equipmentId: binding.equipmentId, action: 'UNBIND' });
+    this.notifications.broadcast('device_binding_changed', {
+      deviceId,
+      equipmentId: binding.equipmentId,
+      action: 'UNBIND',
+    });
     this.notifications.broadcast('device_status', { deviceId });
   }
 
@@ -391,18 +487,38 @@ export class DevicesService {
     const oldBinding = await manager.findOne(DeviceBinding, {
       where: { deviceId: failedDeviceId, boundTo: IsNull() },
     });
-    if (!oldBinding) throw new NotFoundException('Failed device has no open binding to replace');
+    if (!oldBinding)
+      throw new NotFoundException(
+        'Failed device has no open binding to replace',
+      );
 
     const targetEquipmentId = mapToEquipmentId ?? oldBinding.equipmentId;
 
-    await manager.update(DeviceBinding, { id: oldBinding.id }, {
-      boundTo: new Date(),
-      reason: `Replaced by device ${newDeviceId}: ${reason}`,
-    });
-    await manager.update(Device, { id: failedDeviceId }, { status: 'DECOMMISSIONED' });
+    await manager.update(
+      DeviceBinding,
+      { id: oldBinding.id },
+      {
+        boundTo: new Date(),
+        reason: `Replaced by device ${newDeviceId}: ${reason}`,
+      },
+    );
+    await manager.update(
+      Device,
+      { id: failedDeviceId },
+      { status: 'DECOMMISSIONED' },
+    );
 
-    const newBinding = await this.bind(actor, newDeviceId, targetEquipmentId, reason);
-    await manager.update(DeviceBinding, { id: newBinding.id }, { replacesBindingId: oldBinding.id });
+    const newBinding = await this.bind(
+      actor,
+      newDeviceId,
+      targetEquipmentId,
+      reason,
+    );
+    await manager.update(
+      DeviceBinding,
+      { id: newBinding.id },
+      { replacesBindingId: oldBinding.id },
+    );
 
     await this.audit.record({
       userId: actor.userId,
@@ -419,19 +535,42 @@ export class DevicesService {
     } catch {
       // non-blocking push
     }
-    this.notifications.broadcast('device_status', { deviceId: failedDeviceId, status: 'DECOMMISSIONED' });
-    this.notifications.broadcast('device_binding_changed', { deviceId: newDeviceId, equipmentId: targetEquipmentId, action: 'BIND' });
-    return manager.findOneOrFail(DeviceBinding, { where: { id: newBinding.id } });
+    this.notifications.broadcast('device_status', {
+      deviceId: failedDeviceId,
+      status: 'DECOMMISSIONED',
+    });
+    this.notifications.broadcast('device_binding_changed', {
+      deviceId: newDeviceId,
+      equipmentId: targetEquipmentId,
+      action: 'BIND',
+    });
+    return manager.findOneOrFail(DeviceBinding, {
+      where: { id: newBinding.id },
+    });
   }
 
-  async decommission(actor: AuthenticatedUser, deviceId: string, reason: string): Promise<Device> {
+  async decommission(
+    actor: AuthenticatedUser,
+    deviceId: string,
+    reason: string,
+  ): Promise<Device> {
     const manager = currentManager();
     const device = await this.get(deviceId);
-    const openBinding = await manager.findOne(DeviceBinding, { where: { deviceId, boundTo: IsNull() } });
+    const openBinding = await manager.findOne(DeviceBinding, {
+      where: { deviceId, boundTo: IsNull() },
+    });
     if (openBinding) {
-      await manager.update(DeviceBinding, { id: openBinding.id }, { boundTo: new Date(), reason });
+      await manager.update(
+        DeviceBinding,
+        { id: openBinding.id },
+        { boundTo: new Date(), reason },
+      );
     }
-    await manager.update(Device, { id: deviceId }, { status: 'DECOMMISSIONED' });
+    await manager.update(
+      Device,
+      { id: deviceId },
+      { status: 'DECOMMISSIONED' },
+    );
     await this.audit.record({
       userId: actor.userId,
       action: 'DEVICE_DECOMMISSIONED',
@@ -446,8 +585,14 @@ export class DevicesService {
     } catch {
       // non-blocking push
     }
-    this.notifications.broadcast('device_status', { deviceId, status: 'DECOMMISSIONED' });
-    this.notifications.broadcast('device_binding_changed', { deviceId, action: 'DECOMMISSION' });
+    this.notifications.broadcast('device_status', {
+      deviceId,
+      status: 'DECOMMISSIONED',
+    });
+    this.notifications.broadcast('device_binding_changed', {
+      deviceId,
+      action: 'DECOMMISSION',
+    });
     return this.get(deviceId);
   }
 }

@@ -10,8 +10,12 @@ export const AppDataSource = new DataSource({
   type: 'postgres',
   host: process.env.DB_HOST ?? 'localhost',
   port: parseInt(process.env.DB_PORT ?? '5432', 10),
-  username: process.env.MIGRATION_DB_USERNAME ?? process.env.DB_SUPERUSER ?? 'postgres',
-  password: process.env.MIGRATION_DB_PASSWORD ?? process.env.DB_SUPERUSER_PASSWORD ?? '',
+  username:
+    process.env.MIGRATION_DB_USERNAME ?? process.env.DB_SUPERUSER ?? 'postgres',
+  password:
+    process.env.MIGRATION_DB_PASSWORD ??
+    process.env.DB_SUPERUSER_PASSWORD ??
+    '',
   database: process.env.DB_DATABASE ?? 'rmp',
   ssl: (process.env.DB_SSL ?? 'false') === 'true',
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],

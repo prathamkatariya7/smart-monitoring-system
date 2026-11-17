@@ -73,6 +73,11 @@ export interface Device {
   fwP4?: string | null;
   fwC6?: string | null;
   dwinProjectVer?: string | null;
+  motorManufacturer?: string | null;
+  motorModel?: string | null;
+  motorProtocol?: string | null;
+  motorSerialNo?: string | null;
+  motorDetectedAt?: string | null;
   lastSeen?: string | null;
   clockSource?: string | null;
   lastNtpSync?: string | null;
@@ -124,6 +129,22 @@ export interface Measurement {
   calibrationVersion?: number | null;
   fwVersion?: string | null;
   batchId?: string | null;
+}
+
+export interface TelemetryEvent {
+  equipmentId: string;
+  temperatureC?: number | null;
+  rpm?: number | null;
+  torqueNcm?: number | null;
+  ts: string;
+}
+
+export interface RealtimeAlarmEvent {
+  equipmentId?: string;
+  severity?: AlarmSeverity;
+  title?: string;
+  parameter?: string;
+  value?: number | string | null;
 }
 
 export interface DataGap {

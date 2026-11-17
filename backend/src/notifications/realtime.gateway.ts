@@ -23,8 +23,20 @@ import { Role } from '../auth/entities/role.entity';
  * RLS scope per socket.
  */
 @Injectable()
-@WebSocketGateway({ cors: { origin: '*' }, namespace: '/ws' })
-export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
+@WebSocketGateway({
+  cors: {
+    origin: process.env.CORS_ORIGIN
+      ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim())
+      : process.env.NODE_ENV === 'production'
+        ? []
+        : true,
+    credentials: true,
+  },
+  namespace: '/ws',
+})
+export class RealtimeGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   private readonly logger = new Logger(RealtimeGateway.name);
 
   @WebSocketServer()
@@ -49,15 +61,23 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       });
 
       const manager = this.dataSource.manager;
-      const roles = await manager.find(UserRole, { where: { userId: payload.sub } });
-      const isAdmin = roles.length > 0 && (await this.isAdminRole(roles.map((r) => r.roleId)));
-      const scopes = await manager.find(UserLabScope, { where: { userId: payload.sub } });
+      const roles = await manager.find(UserRole, {
+        where: { userId: payload.sub },
+      });
+      const isAdmin =
+        roles.length > 0 &&
+        (await this.isAdminRole(roles.map((r) => r.roleId)));
+      const scopes = await manager.find(UserLabScope, {
+        where: { userId: payload.sub },
+      });
 
       client.data.userId = payload.sub;
       client.data.isAdmin = isAdmin;
       client.data.laboratoryIds = scopes.map((s) => s.laboratoryId);
       client.join(`user:${payload.sub}`);
-      this.logger.log(`Socket ${client.id} authenticated as user ${payload.sub}`);
+      this.logger.log(
+        `Socket ${client.id} authenticated as user ${payload.sub}`,
+      );
     } catch (err: any) {
       this.logger.warn(`Socket ${client.id} failed auth: ${err.message}`);
       client.disconnect(true);
@@ -85,7 +105,9 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const isAdmin = !!client.data.isAdmin;
     const laboratoryIds: string[] = client.data.laboratoryIds ?? [];
     if (!isAdmin && !laboratoryIds.includes(laboratoryId)) {
-      this.logger.warn(`Socket ${client.id} denied join_lab ${laboratoryId} (out of scope)`);
+      this.logger.warn(
+        `Socket ${client.id} denied join_lab ${laboratoryId} (out of scope)`,
+      );
       return;
     }
     client.join(`lab:${laboratoryId}`);
@@ -95,7 +117,11 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     this.server?.to(`user:${userId}`).emit(event, payload);
   }
 
-  pushToLaboratory(laboratoryId: string, event: string, payload: unknown): void {
+  pushToLaboratory(
+    laboratoryId: string,
+    event: string,
+    payload: unknown,
+  ): void {
     this.server?.to(`lab:${laboratoryId}`).emit(event, payload);
   }
 }

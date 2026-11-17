@@ -7,7 +7,7 @@ import { AuthenticatedUser } from '../auth/auth.types';
 @UseGuards(RolesGuard)
 @Controller('notifications')
 export class NotificationsController {
-  constructor(private readonly notifications: NotificationsService) { }
+  constructor(private readonly notifications: NotificationsService) {}
 
   /** Active (unseen) notifications — powers the bell badge and notification list. */
   @Get()

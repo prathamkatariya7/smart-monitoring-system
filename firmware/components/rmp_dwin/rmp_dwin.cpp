@@ -58,9 +58,10 @@ void Dwin::pollRx() {
   if (available > 0) {
     uint8_t buf[64];
     int read = uart_read_bytes(kUart, buf, sizeof(buf), 0);
-    if (read >= 7 && buf[0] == 0x5A && buf[1] == 0xA5) {
+    if (read >= 9 && buf[0] == 0x5A && buf[1] == 0xA5 &&
+        buf[2] >= 6 && (size_t)(buf[2] + 3) <= (size_t)read) {
       // 5A A5 06 83 00 14 01 00 <page>
-      if (buf[3] == 0x83 && buf[4] == 0x00 && buf[5] == 0x14) {
+      if (buf[3] == 0x83 && buf[4] == 0x00 && buf[5] == 0x14 && buf[6] == 0x01) {
         current_page_ = buf[8];
         ESP_LOGD(kTag, "Read current page confirmed: %d", current_page_);
       }
@@ -89,6 +90,24 @@ void Dwin::writeValue(uint16_t vp, uint16_t v) {
     (uint8_t)(v >> 8), (uint8_t)(v & 0xFF)
   };
   sendRaw(f, sizeof(f));
+}
+
+void Dwin::writeNavigationState(uint16_t focus, uint16_t diagnosticWindowTop,
+                                uint16_t diagnosticFocus,
+                                uint16_t assignmentState) {
+  // The four VPs are contiguous. One multi-word frame prevents DGUS from
+  // rendering a new highlight with an old scroll window between frames.
+  const uint16_t values[] = {focus, diagnosticWindowTop, diagnosticFocus,
+                             assignmentState};
+  uint8_t f[] = {0x5A, 0xA5, 0x0B, 0x82, 0x13, 0x20,
+                 (uint8_t)(values[0] >> 8), (uint8_t)values[0],
+                 (uint8_t)(values[1] >> 8), (uint8_t)values[1],
+                 (uint8_t)(values[2] >> 8), (uint8_t)values[2],
+                 (uint8_t)(values[3] >> 8), (uint8_t)values[3]};
+  lock();
+  uart_write_bytes(kUart, f, sizeof(f));
+  unlock();
+  vTaskDelay(pdMS_TO_TICKS(5));
 }
 
 void Dwin::writeText(uint16_t vp, const char *s, size_t maxChars) {

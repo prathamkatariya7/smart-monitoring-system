@@ -49,7 +49,9 @@ export class Alarms1730000000005 implements MigrationInterface {
         OR laboratory_id::text = ANY (string_to_array(current_setting('app.current_laboratory_ids', true), ','))
       );
     `);
-    await queryRunner.query(`CREATE INDEX alarm_equipment_onset_idx ON alarm (equipment_id, onset_ts DESC);`);
+    await queryRunner.query(
+      `CREATE INDEX alarm_equipment_onset_idx ON alarm (equipment_id, onset_ts DESC);`,
+    );
 
     await queryRunner.query(`
       CREATE TABLE alert_override (
@@ -80,7 +82,9 @@ export class Alarms1730000000005 implements MigrationInterface {
         created_at          timestamptz NOT NULL DEFAULT now()
       );
     `);
-    await queryRunner.query(`ALTER TABLE alert_override ENABLE ROW LEVEL SECURITY;`);
+    await queryRunner.query(
+      `ALTER TABLE alert_override ENABLE ROW LEVEL SECURITY;`,
+    );
     await queryRunner.query(`
       CREATE POLICY alert_override_lab_isolation ON alert_override
       USING (
@@ -88,7 +92,9 @@ export class Alarms1730000000005 implements MigrationInterface {
         OR laboratory_id::text = ANY (string_to_array(current_setting('app.current_laboratory_ids', true), ','))
       );
     `);
-    await queryRunner.query(`CREATE INDEX alert_override_lab_created_idx ON alert_override (laboratory_id, created_at);`);
+    await queryRunner.query(
+      `CREATE INDEX alert_override_lab_created_idx ON alert_override (laboratory_id, created_at);`,
+    );
     // 10.2: no UPDATE except end/seen fields -- enforced in the service layer (no raw PATCH endpoint
     // exposes other columns); DB-level column privilege restriction is applied for defense in depth.
   }

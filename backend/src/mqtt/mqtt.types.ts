@@ -4,6 +4,15 @@ export interface DeviceStatePayload {
   boot?: number;
   fw?: string;
   ts?: number; // device UTC ms if synced
+  motor?: MotorIdentityPayload;
+}
+
+export interface MotorIdentityPayload {
+  detected: boolean;
+  manufacturer?: 'HEIDOLPH' | 'IKA' | string;
+  model?: string;
+  protocol?: 'HEIDOLPH_RS232_9600_8N1' | 'IKA_RS232_9600_7E1' | string;
+  serial?: string | null;
 }
 
 /** Part 8.2 batch payload: columnar rows keyed by the `f` header array. */

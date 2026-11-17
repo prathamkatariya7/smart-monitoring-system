@@ -23,7 +23,9 @@ export class Notification1730000000006 implements MigrationInterface {
         escalated_to  uuid REFERENCES app_user(id)
       );
     `);
-    await queryRunner.query(`CREATE INDEX notification_user_created_idx ON notification (user_id, created_at DESC);`);
+    await queryRunner.query(
+      `CREATE INDEX notification_user_created_idx ON notification (user_id, created_at DESC);`,
+    );
     await queryRunner.query(`
       CREATE INDEX notification_unseen_high_idx ON notification (laboratory_id)
         WHERE (priority = 'HIGH' AND seen_at IS NULL);

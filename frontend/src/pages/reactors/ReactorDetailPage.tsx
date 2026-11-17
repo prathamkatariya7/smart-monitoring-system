@@ -5,6 +5,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { reactorsApi } from '@/api/reactors';
 import { alarmsApi } from '@/api/alarms';
 import type { Measurement, Alarm } from '@/api/types';
+import { useNow } from '@/hooks/use-now';
 
 function toChartPoint(m: Measurement) {
   return {
@@ -43,6 +44,7 @@ const alarmColumns = [
 
 export function ReactorDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const now = useNow();
 
   const { data: equipment, isLoading: loadingEq } = useQuery({
     queryKey: ['reactor', id],
@@ -70,7 +72,7 @@ export function ReactorDetailPage() {
 
   if (loadingEq || !equipment) return <Spin />;
 
-  const isOnline = live?.ts ? (Date.now() - new Date(live.ts).getTime()) < 45000 : false;
+  const isOnline = live?.ts ? now - new Date(live.ts).getTime() < 45_000 : false;
 
   const chartData = (recent ?? [])
     .slice()

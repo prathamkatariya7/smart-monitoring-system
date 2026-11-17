@@ -10,7 +10,11 @@ import { NotificationsSchedulerService } from './notifications-scheduler.service
 @Module({
   imports: [JwtModule.register({})],
   controllers: [NotificationsController],
-  providers: [NotificationsService, RealtimeGateway, NotificationsSchedulerService],
+  providers: [
+    NotificationsService,
+    RealtimeGateway,
+    NotificationsSchedulerService,
+  ],
   exports: [NotificationsService, RealtimeGateway],
 })
 export class NotificationsModule {}

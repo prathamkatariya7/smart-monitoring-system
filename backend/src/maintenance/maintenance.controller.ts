@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { MaintenanceService } from './maintenance.service';
 import { CreateMaintenanceDto } from './dto/create-maintenance.dto';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -28,7 +36,10 @@ export class MaintenanceController {
 
   @Roles('ADMIN', 'LAB_INCHARGE')
   @Post()
-  create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateMaintenanceDto) {
+  create(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateMaintenanceDto,
+  ) {
     return this.maintenance.create(user, dto);
   }
 }

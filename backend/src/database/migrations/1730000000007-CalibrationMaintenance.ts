@@ -33,7 +33,9 @@ export class CalibrationMaintenance1730000000007 implements MigrationInterface {
         created_at         timestamptz NOT NULL DEFAULT now()
       );
     `);
-    await queryRunner.query(`CREATE INDEX calibration_due_idx ON calibration_version (due_on);`);
+    await queryRunner.query(
+      `CREATE INDEX calibration_due_idx ON calibration_version (due_on);`,
+    );
 
     await queryRunner.query(`
       CREATE TABLE maintenance_record (
@@ -51,7 +53,9 @@ export class CalibrationMaintenance1730000000007 implements MigrationInterface {
         created_at            timestamptz NOT NULL DEFAULT now()
       );
     `);
-    await queryRunner.query(`CREATE INDEX maintenance_due_idx ON maintenance_record (next_due_on);`);
+    await queryRunner.query(
+      `CREATE INDEX maintenance_due_idx ON maintenance_record (next_due_on);`,
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

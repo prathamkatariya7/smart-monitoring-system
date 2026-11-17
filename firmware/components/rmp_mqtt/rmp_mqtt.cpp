@@ -121,12 +121,31 @@ bool Mqtt::begin(const MqttConfig &cfg) {
 
 bool Mqtt::isConnected() const { return s_connected; }
 
-void Mqtt::publishState(const char *link, uint32_t boot) {
+void Mqtt::publishState(const char *link, uint32_t boot,
+                        const char *motorManufacturer,
+                        const char *motorModel,
+                        const char *motorProtocol,
+                        const char *motorSerial) {
   if (!s_connected) return;
-  char body[128];
-  snprintf(body, sizeof body,
-           "{\"online\":true,\"link\":\"%s\",\"boot\":%" PRIu32 ",\"fw\":\"%s\"}",
-           link ? link : "wifi", boot, s_fw_version);
+  char body[384];
+  char serialJson[64] = "null";
+  if (motorSerial && motorSerial[0])
+    snprintf(serialJson, sizeof serialJson, "\"%s\"", motorSerial);
+  const bool motorDetected = motorManufacturer && motorManufacturer[0] &&
+                             motorModel && motorModel[0] && motorProtocol &&
+                             motorProtocol[0];
+  if (motorDetected) {
+    snprintf(body, sizeof body,
+             "{\"online\":true,\"link\":\"%s\",\"boot\":%" PRIu32
+             ",\"fw\":\"%s\",\"motor\":{\"detected\":true,\"manufacturer\":\"%s\",\"model\":\"%s\",\"protocol\":\"%s\",\"serial\":%s}}",
+             link ? link : "wifi", boot, s_fw_version, motorManufacturer,
+             motorModel, motorProtocol, serialJson);
+  } else {
+    snprintf(body, sizeof body,
+             "{\"online\":true,\"link\":\"%s\",\"boot\":%" PRIu32
+             ",\"fw\":\"%s\",\"motor\":{\"detected\":false}}",
+             link ? link : "wifi", boot, s_fw_version);
+  }
   char topic[64];
   buildTopic(topic, sizeof topic, "state");
   esp_mqtt_client_publish(s_client, topic, body, 0, 1, 0);

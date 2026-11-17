@@ -28,7 +28,9 @@ export class DeviceOfflineSchedulerService {
         .getRepository(DeviceState)
         .createQueryBuilder('s')
         .where('s.online = true')
-        .andWhere(`s.updated_at < now() - interval '${DeviceOfflineSchedulerService.TIMEOUT_SECONDS} seconds'`)
+        .andWhere(
+          `s.updated_at < now() - interval '${DeviceOfflineSchedulerService.TIMEOUT_SECONDS} seconds'`,
+        )
         .getMany();
 
       if (staleStates.length > 0) {
@@ -42,11 +44,15 @@ export class DeviceOfflineSchedulerService {
           .execute();
 
         for (const id of ids) {
-          this.notifications.broadcast('device_status', { deviceId: id, online: false });
+          this.notifications.broadcast('device_status', {
+            deviceId: id,
+            online: false,
+          });
         }
-        this.logger.log(`Marked ${ids.length} device(s) offline (no heartbeat in ${DeviceOfflineSchedulerService.TIMEOUT_SECONDS}s)`);
+        this.logger.log(
+          `Marked ${ids.length} device(s) offline (no heartbeat in ${DeviceOfflineSchedulerService.TIMEOUT_SECONDS}s)`,
+        );
       }
     });
   }
 }
-

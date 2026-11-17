@@ -6,7 +6,7 @@ import { useNotificationsStore } from '@/store/notifications.store';
 import { connectRealtime, disconnectRealtime } from './socket';
 import { tenancyApi } from '@/api/tenancy';
 import { notificationsApi } from '@/api/notifications';
-import type { Notification } from '@/api/types';
+import type { Notification, RealtimeAlarmEvent, TelemetryEvent } from '@/api/types';
 import { humanizeNotification } from '@/util/notification-format';
 
 /**
@@ -87,9 +87,9 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       qc.invalidateQueries({ queryKey: ['laboratories'] });
     });
 
-    socket.on('telemetry', (data: any) => {
+    socket.on('telemetry', (data: TelemetryEvent) => {
       if (data?.equipmentId) {
-        qc.setQueryData(['reactor-live', data.equipmentId], (old: any) => ({
+        qc.setQueryData(['reactor-live', data.equipmentId], (old: TelemetryEvent | undefined) => ({
           ...old,
           temperatureC: data.temperatureC ?? old?.temperatureC,
           rpm: data.rpm ?? old?.rpm,
@@ -99,7 +99,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    socket.on('ALARM_ACTIVE', (payload: any) => {
+    socket.on('ALARM_ACTIVE', (payload: RealtimeAlarmEvent) => {
       const isCritical = payload.severity === 'CRITICAL';
       const heading = isCritical ? '🔥 CRITICAL FIRE / RUNAWAY ALARM' : '⚠️ Threshold Warning';
       const desc = payload.title || `${payload.parameter} = ${payload.value} on reactor`;
@@ -132,7 +132,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       qc.invalidateQueries({ queryKey: ['notifications'] });
     });
 
-    socket.on('ALARM_CLEARED', (payload: any) => {
+    socket.on('ALARM_CLEARED', (payload: RealtimeAlarmEvent) => {
       qc.invalidateQueries({ queryKey: ['alarms'] });
       qc.invalidateQueries({ queryKey: ['reactor-alarms'] });
       qc.invalidateQueries({ queryKey: ['reactors'] });

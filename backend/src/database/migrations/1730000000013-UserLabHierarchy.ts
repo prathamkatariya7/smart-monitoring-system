@@ -22,7 +22,9 @@ export class UserLabHierarchy1730000000013 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE app_user DROP COLUMN IF EXISTS reports_to_user_id;`);
+    await queryRunner.query(
+      `ALTER TABLE app_user DROP COLUMN IF EXISTS reports_to_user_id;`,
+    );
     await queryRunner.query(
       `ALTER TABLE user_lab_scope DROP CONSTRAINT IF EXISTS user_lab_scope_user_id_key;`,
     );
